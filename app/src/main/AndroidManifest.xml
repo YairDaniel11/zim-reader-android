@@ -84,10 +84,6 @@
             android:name=".ListScreenActivity"
             android:exported="false" />
 
-        <activity
-            android:name=".KeyTestActivity"
-            android:exported="false" />
-
     </application>
 
 </manifest>

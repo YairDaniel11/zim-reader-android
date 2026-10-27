@@ -52,8 +52,6 @@ public class ReaderActivity extends Activity {
     private String pendingFind;
     private boolean clearHist;
     private boolean legacyCss;
-    private int keysSeen, keysMapped, webKeys, cssFixed, htmlServed;
-    private String lastKey = "-";
     private il.zimreader.zim.CssCompat cssCompat = new il.zimreader.zim.CssCompat();
 
     @Override
@@ -78,13 +76,6 @@ public class ReaderActivity extends Activity {
         s.setTextZoom(Prefs.zoom(this));
         web.setBackgroundColor(ThemeUtil.isDark(this) ? 0xFF212121 : 0xFFFFFFFF);
         web.setWebViewClient(new Client());
-        web.setOnKeyListener(new View.OnKeyListener() {
-            @Override
-            public boolean onKey(View v, int keyCode, KeyEvent event) {
-                if (event.getAction() == KeyEvent.ACTION_DOWN) webKeys++;
-                return false;
-            }
-        });
         legacyCss = Prefs.forceLegacyCss(this)
                 || il.zimreader.zim.CssCompat.isLegacyWebView(s.getUserAgentString(), Build.VERSION.SDK_INT);
 
@@ -117,7 +108,7 @@ public class ReaderActivity extends Activity {
     /** חיווי רגעי בשורת התחתית: איזה מקש נלחץ ואיזו פעולה הופעלה (עוזר לאבחן מכשירים). */
     private void showKeyHint(KeyEvent ev, int action) {
         final TextView hint = (TextView) findViewById(R.id.hint);
-        hint.setText(KeyEvent.keyCodeToString(ev.getKeyCode()) + " ← " + Keys.name(action));
+        hint.setText(Keys.name(action));
         hintHandler.removeCallbacksAndMessages(null);
         hintHandler.postDelayed(new Runnable() {
             @Override
@@ -455,68 +446,6 @@ public class ReaderActivity extends Activity {
         web.getSettings().setTextZoom(ZOOMS[idx]);
     }
 
-    private boolean diagShown;
-
-    /** בדיקת JavaScript בדף (מחזיר תשובה אסינכרונית), ואז מציג את חלון האבחון. */
-    private void showDiag() {
-        diagShown = false;
-        final String probe = "(window.zr?'zr=yes':'zr=NO')+' a='+document.getElementsByTagName('a').length"
-                + "+' h='+document.documentElement.scrollHeight+' bg='"
-                + "+(window.getComputedStyle(document.body).backgroundColor)";
-        js(probe, new ValueCallback<String>() {
-            @Override
-            public void onReceiveValue(String v) {
-                showDiagDialog(v == null ? "JS: אין תשובה" : "JS: " + v);
-            }
-        });
-        hintHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                if (!diagShown) showDiagDialog("JS: לא הגיבה (evaluateJavascript לא עובד?)");
-            }
-        }, 2500);
-    }
-
-    private void showDiagDialog(String jsInfo) {
-        if (diagShown) return;
-        diagShown = true;
-        String ver = "?";
-        try {
-            android.content.pm.PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0);
-            ver = pi.versionName + " (build " + pi.versionCode + ")";
-        } catch (Exception ignored) {
-        }
-        String ua = web.getSettings().getUserAgentString();
-        int cut = ua.indexOf("Chrome/");
-        String chrome = cut >= 0 ? ua.substring(cut, Math.min(ua.length(), cut + 16)) : "?";
-        new AlertDialog.Builder(this)
-                .setTitle("אבחון")
-                .setMessage("גרסה: " + ver + "\n"
-                        + "אנדרואיד API: " + Build.VERSION.SDK_INT + "\n"
-                        + "WebView: " + chrome + "\n"
-                        + "תאימות CSS ישן: " + (legacyCss ? "פעילה" : "כבויה")
-                        + "  (משתנים: " + cssCompat.varCount() + ", קבצי CSS שתוקנו: " + cssFixed + ")\n"
-                        + "דפי HTML שהוגשו: " + htmlServed + "\n"
-                        + "מקשים שהגיעו לאפליקציה: " + keysSeen + ", הוכרו: " + keysMapped
-                        + ", הגיעו ל-WebView: " + webKeys + "\n"
-                        + "מקש אחרון: " + lastKey + "\n"
-                        + "שוליים: " + marginName(Prefs.margin(this)) + "\n"
-                        + "עמוד: " + curPath + "\n"
-                        + "קישורים שזוהו ב-HTML: " + countLinks() + "\n"
-                        + jsInfo)
-                .setPositiveButton(R.string.ok, null)
-                .show();
-    }
-
-    private int countLinks() {
-        String html = currentHtml();
-        if (html == null) return -1;
-        Matcher m = LINK.matcher(html);
-        int n = 0;
-        while (m.find()) n++;
-        return n;
-    }
-
     private void showHelp() {
         new AlertDialog.Builder(this)
                 .setTitle("מקשים")
@@ -548,12 +477,7 @@ public class ReaderActivity extends Activity {
     public boolean dispatchKeyEvent(KeyEvent ev) {
         int a = Keys.map(ev);
         boolean down = ev.getAction() == KeyEvent.ACTION_DOWN;
-        if (down) {
-            keysSeen++;
-            lastKey = KeyEvent.keyCodeToString(ev.getKeyCode()) + " -> " + Keys.name(a);
-        }
         if (a == Keys.NONE) return super.dispatchKeyEvent(ev);
-        if (down) keysMapped++;
         if (down && ev.getRepeatCount() == 0) showKeyHint(ev, a);
 
         // פעולות כלליות
@@ -702,12 +626,10 @@ public class ReaderActivity extends Activity {
                 if (semi > 0) mime = mime.substring(0, semi);
                 if (legacyCss && mime.equals("text/css")) {
                     String css = cssCompat.fixCss(new String(zim.content(e), ZimFile.UTF8));
-                    cssFixed++;
                     return new WebResourceResponse(mime, "UTF-8", new ByteArrayInputStream(css.getBytes(ZimFile.UTF8)));
                 }
                 if (mime.equals("text/html")) {
                     String html = new String(zim.content(e), ZimFile.UTF8);
-                    htmlServed++;
                     if (legacyCss) html = cssCompat.fixHtml(html);
                     return new WebResourceResponse(mime, "UTF-8",
                             new ByteArrayInputStream(layoutHead(html).getBytes(ZimFile.UTF8)));
