@@ -302,7 +302,7 @@ public class ReaderActivity extends Activity {
             + "var s=document.getElementById('zr-night');"
             + "if(%NIGHT%){if(!s){s=document.createElement('style');s.id='zr-night';"
             + "s.textContent='html,body,body *{background-color:#212121!important;color:#e0e0e0!important;"
-            + "border-color:#555!important}a,a *{color:#8aa4e6!important}img{opacity:.85}';"
+            + "border-color:#555!important;background-image:none!important}a,a *{color:#8aa4e6!important}img{opacity:.85}';"
             + "document.head.appendChild(s);}}else if(s){s.parentNode.removeChild(s);}})();";
 
     private String pathFromUrl(String url) {

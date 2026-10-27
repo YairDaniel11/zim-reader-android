@@ -72,6 +72,10 @@ public class SearchActivity extends Activity {
                 return false;
             }
         });
+        // אפשר לפתוח את החיפוש עם טקסט מוכן (שימושי גם לבדיקות)
+        String q0 = getIntent().getStringExtra("q");
+        if (q0 != null) query.setText(q0);
+
         list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> p, View v, int pos, long id) {
