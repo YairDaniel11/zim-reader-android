@@ -35,7 +35,13 @@ public class MainActivity extends Activity {
         header = (TextView) findViewById(R.id.header);
         list = (ListView) findViewById(R.id.list);
         empty = (TextView) findViewById(R.id.empty);
-        ((TextView) findViewById(R.id.hint)).setText(R.string.hint_library);
+        String ver = "";
+        try {
+            android.content.pm.PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0);
+            ver = "  ·  גרסה " + pi.versionCode;
+        } catch (Exception ignored) {
+        }
+        ((TextView) findViewById(R.id.hint)).setText(getString(R.string.hint_library) + ver);
 
         if (Library.list().isEmpty()) Library.setFromCache(Prefs.loadLibrary(this));
 

@@ -52,6 +52,8 @@ public class ReaderActivity extends Activity {
     private String pendingFind;
     private boolean clearHist;
     private boolean legacyCss;
+    private int keysSeen, keysMapped, webKeys, cssFixed, htmlServed;
+    private String lastKey = "-";
     private il.zimreader.zim.CssCompat cssCompat = new il.zimreader.zim.CssCompat();
 
     @Override
@@ -76,6 +78,13 @@ public class ReaderActivity extends Activity {
         s.setTextZoom(Prefs.zoom(this));
         web.setBackgroundColor(ThemeUtil.isDark(this) ? 0xFF212121 : 0xFFFFFFFF);
         web.setWebViewClient(new Client());
+        web.setOnKeyListener(new View.OnKeyListener() {
+            @Override
+            public boolean onKey(View v, int keyCode, KeyEvent event) {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) webKeys++;
+                return false;
+            }
+        });
         legacyCss = Prefs.forceLegacyCss(this)
                 || il.zimreader.zim.CssCompat.isLegacyWebView(s.getUserAgentString(), Build.VERSION.SDK_INT);
 
@@ -357,7 +366,7 @@ public class ReaderActivity extends Activity {
         final String[] items = {
                 "קישורים בדף", "כותרות בדף", "רשימת סימניות", "היסטוריה",
                 "שוליים: " + marginName(Prefs.margin(this)), "הגדל גופן", "הקטן גופן",
-                dark ? "מצב יום" : "מצב לילה", "בדיקת מקשים", "עזרה: מקשים"};
+                dark ? "מצב יום" : "מצב לילה", "בדיקת מקשים", "אבחון (לשליחת צילום)", "עזרה: מקשים"};
         new AlertDialog.Builder(this)
                 .setItems(items, new DialogInterface.OnClickListener() {
                     @Override
@@ -375,6 +384,7 @@ public class ReaderActivity extends Activity {
                                 recreate();
                                 break;
                             case 8: startActivity(new Intent(ReaderActivity.this, KeyTestActivity.class)); break;
+                            case 9: showDiag(); break;
                             default: showHelp();
                         }
                     }
@@ -445,6 +455,32 @@ public class ReaderActivity extends Activity {
         web.getSettings().setTextZoom(ZOOMS[idx]);
     }
 
+    private void showDiag() {
+        String ver = "?";
+        try {
+            android.content.pm.PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0);
+            ver = pi.versionName + " (build " + pi.versionCode + ")";
+        } catch (Exception ignored) {
+        }
+        String ua = web.getSettings().getUserAgentString();
+        int cut = ua.indexOf("Chrome/");
+        String chrome = cut >= 0 ? ua.substring(cut, Math.min(ua.length(), cut + 16)) : "?";
+        new AlertDialog.Builder(this)
+                .setTitle("אבחון")
+                .setMessage("גרסה: " + ver + "\n"
+                        + "אנדרואיד API: " + Build.VERSION.SDK_INT + "\n"
+                        + "WebView: " + chrome + "\n"
+                        + "תאימות CSS ישן: " + (legacyCss ? "פעילה" : "כבויה")
+                        + "  (משתנים: " + cssCompat.varCount() + ", קבצי CSS שתוקנו: " + cssFixed + ")\n"
+                        + "דפי HTML שהוגשו: " + htmlServed + "\n"
+                        + "מקשים שהגיעו לאפליקציה: " + keysSeen + ", הוכרו: " + keysMapped
+                        + ", הגיעו ל-WebView: " + webKeys + "\n"
+                        + "מקש אחרון: " + lastKey + "\n"
+                        + "שוליים: " + marginName(Prefs.margin(this)))
+                .setPositiveButton(R.string.ok, null)
+                .show();
+    }
+
     private void showHelp() {
         new AlertDialog.Builder(this)
                 .setTitle("מקשים")
@@ -475,8 +511,13 @@ public class ReaderActivity extends Activity {
     @Override
     public boolean dispatchKeyEvent(KeyEvent ev) {
         int a = Keys.map(ev);
-        if (a == Keys.NONE) return super.dispatchKeyEvent(ev);
         boolean down = ev.getAction() == KeyEvent.ACTION_DOWN;
+        if (down) {
+            keysSeen++;
+            lastKey = KeyEvent.keyCodeToString(ev.getKeyCode()) + " -> " + Keys.name(a);
+        }
+        if (a == Keys.NONE) return super.dispatchKeyEvent(ev);
+        if (down) keysMapped++;
         if (down && ev.getRepeatCount() == 0) showKeyHint(ev, a);
 
         // פעולות כלליות
@@ -623,10 +664,12 @@ public class ReaderActivity extends Activity {
                 if (semi > 0) mime = mime.substring(0, semi);
                 if (legacyCss && mime.equals("text/css")) {
                     String css = cssCompat.fixCss(new String(zim.content(e), ZimFile.UTF8));
+                    cssFixed++;
                     return new WebResourceResponse(mime, "UTF-8", new ByteArrayInputStream(css.getBytes(ZimFile.UTF8)));
                 }
                 if (mime.equals("text/html")) {
                     String html = new String(zim.content(e), ZimFile.UTF8);
+                    htmlServed++;
                     if (legacyCss) html = cssCompat.fixHtml(html);
                     return new WebResourceResponse(mime, "UTF-8",
                             new ByteArrayInputStream(layoutHead(html).getBytes(ZimFile.UTF8)));

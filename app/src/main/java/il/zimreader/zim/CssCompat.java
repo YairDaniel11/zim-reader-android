@@ -64,6 +64,10 @@ public final class CssCompat {
                 .replace("border-inline-end", "-webkit-border-end");
     }
 
+    public synchronized int varCount() {
+        return vars.size();
+    }
+
     /** קובץ CSS שלם. */
     public synchronized String fixCss(String css) {
         collect(css);
