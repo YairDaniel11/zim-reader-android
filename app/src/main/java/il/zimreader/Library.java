@@ -35,6 +35,17 @@ public final class Library {
         return new ArrayList<Book>(books);
     }
 
+    /** טוען את הרשימה השמורה (בלי סריקה), רק קבצים שעדיין קיימים. */
+    public static synchronized void setFromCache(List<Book> cached) {
+        books.clear();
+        for (Book b : cached) {
+            if (new File(b.path).exists()) {
+                books.add(b);
+                names.put(b.path, b.name);
+            }
+        }
+    }
+
     public static synchronized String idOf(String path) {
         String id = Integer.toHexString(path.hashCode());
         idToPath.put(id, path);

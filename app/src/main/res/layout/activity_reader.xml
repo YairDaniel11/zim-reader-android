@@ -31,34 +31,69 @@
             style="@style/BarButton"
             android:contentDescription="דף ראשי"
             android:src="@drawable/ic_home"
-            android:focusable="false" />
+            android:nextFocusLeft="@+id/btnSearch"
+            android:nextFocusRight="@+id/btnHome"
+            android:nextFocusUp="@id/btnHome"
+            android:nextFocusDown="@+id/web" />
 
         <ImageButton
             android:id="@+id/btnSearch"
             style="@style/BarButton"
             android:contentDescription="חיפוש"
             android:src="@drawable/ic_search"
-            android:focusable="false" />
+            android:nextFocusLeft="@+id/btnBookmark"
+            android:nextFocusRight="@+id/btnHome"
+            android:nextFocusUp="@id/btnSearch"
+            android:nextFocusDown="@+id/web" />
 
         <ImageButton
             android:id="@+id/btnBookmark"
             style="@style/BarButton"
             android:contentDescription="סימנייה"
             android:src="@drawable/ic_bookmark"
-            android:focusable="false" />
+            android:nextFocusLeft="@+id/btnLibrary"
+            android:nextFocusRight="@+id/btnSearch"
+            android:nextFocusUp="@id/btnBookmark"
+            android:nextFocusDown="@+id/web" />
+
+        <ImageButton
+            android:id="@+id/btnLibrary"
+            style="@style/BarButton"
+            android:contentDescription="ספרים"
+            android:src="@drawable/ic_library"
+            android:nextFocusLeft="@+id/btnMenu"
+            android:nextFocusRight="@+id/btnBookmark"
+            android:nextFocusUp="@id/btnLibrary"
+            android:nextFocusDown="@+id/web" />
 
         <ImageButton
             android:id="@+id/btnMenu"
             style="@style/BarButton"
             android:contentDescription="תפריט"
             android:src="@drawable/ic_more"
-            android:focusable="false" />
+            android:nextFocusLeft="@+id/btnMenu"
+            android:nextFocusRight="@+id/btnLibrary"
+            android:nextFocusUp="@id/btnMenu"
+            android:nextFocusDown="@+id/web" />
     </LinearLayout>
 
-    <!-- הכפתורים למגע בלבד; במקשים: * חיפוש, # או MENU תפריט, חצים לגלילה -->
     <WebView
         android:id="@+id/web"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_weight="1"
+        android:focusable="true"
+        android:nextFocusUp="@id/btnHome" />
+
+    <TextView
+        android:id="@+id/hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/zrHeader"
+        android:ellipsize="end"
+        android:gravity="center"
+        android:padding="4dp"
+        android:singleLine="true"
+        android:textColor="#FFBDBDBD"
+        android:textSize="11sp" />
 </LinearLayout>

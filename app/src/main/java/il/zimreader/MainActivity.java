@@ -15,14 +15,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** מסך הספרייה: רשימת קבצי ה-ZIM שנמצאו. */
+/** מסך הספרייה: רשימת קבצי ה-ZIM. הרשימה נשמרת בין כניסות, וסריקה מחדש רק לפי בקשה. */
 public class MainActivity extends Activity {
     private ListView list;
     private TextView empty;
     private TextView header;
     private boolean asked;
     private boolean scanning;
-    private boolean scannedOnce;
     private List<Library.Book> shown = new ArrayList<Library.Book>();
 
     @Override
@@ -33,9 +32,11 @@ public class MainActivity extends Activity {
         ThemeUtil.forceRtl(this);
 
         header = (TextView) findViewById(R.id.header);
-        header.setText(R.string.library);
         list = (ListView) findViewById(R.id.list);
         empty = (TextView) findViewById(R.id.empty);
+        ((TextView) findViewById(R.id.hint)).setText(R.string.hint_library);
+
+        if (Library.list().isEmpty()) Library.setFromCache(Prefs.loadLibrary(this));
 
         list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
@@ -64,6 +65,13 @@ public class MainActivity extends Activity {
                 openList(Prefs.HISTORY);
             }
         });
+        findViewById(R.id.btnMenu).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showMenu();
+            }
+        });
+        render();
     }
 
     private void openList(String mode) {
@@ -74,7 +82,8 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         if (PermissionUtil.hasStorage(this)) {
-            if (!scannedOnce) startScan();
+            // סריקה אוטומטית רק כשאין רשימה שמורה בכלל
+            if (Library.list().isEmpty()) startScan();
             else render();
         } else if (!asked) {
             asked = true;
@@ -105,12 +114,15 @@ public class MainActivity extends Activity {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                Library.scan();
+                try {
+                    Library.scan();
+                    Prefs.saveLibrary(MainActivity.this, Library.list());
+                } catch (Throwable ignored) {
+                }
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         scanning = false;
-                        scannedOnce = true;
                         if (!isFinishing()) render();
                     }
                 });
@@ -120,8 +132,14 @@ public class MainActivity extends Activity {
 
     private void render() {
         shown = Library.list();
+        header.setText(shown.isEmpty() ? getString(R.string.library)
+                : getString(R.string.library) + " (" + shown.size() + ")");
         List<String[]> rows = new ArrayList<String[]>();
-        for (Library.Book b : shown) {
+        int selected = 0;
+        String last = Prefs.lastBook(this);
+        for (int i = 0; i < shown.size(); i++) {
+            Library.Book b = shown.get(i);
+            if (b.path.equals(last)) selected = i;
             String file = b.path.substring(b.path.lastIndexOf('/') + 1);
             rows.add(new String[]{b.name,
                     String.format(Locale.US, "%.1f MB  ·  %s", b.size / 1048576.0, file)});
@@ -134,15 +152,39 @@ public class MainActivity extends Activity {
         } else {
             empty.setVisibility(View.GONE);
             list.requestFocus();
+            list.setSelection(selected);   // חיווי: הספר האחרון שנקרא מסומן
         }
     }
 
+    private void showMenu() {
+        final boolean dark = ThemeUtil.isDark(this);
+        String[] items = {"סרוק מחדש", "סימניות", "היסטוריה", dark ? "מצב יום" : "מצב לילה", "בדיקת מקשים"};
+        new AlertDialog.Builder(this)
+                .setItems(items, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which) {
+                        switch (which) {
+                            case 0: startScan(); break;
+                            case 1: openList(Prefs.BOOKMARKS); break;
+                            case 2: openList(Prefs.HISTORY); break;
+                            case 3:
+                                ThemeUtil.toggle(MainActivity.this);
+                                recreate();
+                                break;
+                            default:
+                                startActivity(new Intent(MainActivity.this, KeyTestActivity.class));
+                        }
+                    }
+                })
+                .show();
+    }
+
     @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_MENU) {
-            startScan();
+    public boolean dispatchKeyEvent(KeyEvent ev) {
+        if (Keys.map(ev) == Keys.MENU) {
+            if (ev.getAction() == KeyEvent.ACTION_DOWN) showMenu();
             return true;
         }
-        return super.onKeyDown(keyCode, event);
+        return super.dispatchKeyEvent(ev);
     }
 }

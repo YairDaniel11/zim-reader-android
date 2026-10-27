@@ -22,7 +22,9 @@ import java.util.Map;
  */
 public final class ZimFile implements Closeable {
     public static final Charset UTF8 = Charset.forName("UTF-8");
-    private static final long CACHE_LIMIT_BYTES = 24L * 1024 * 1024;
+    /** מטמון אשכולות מפוענחים: עד 24MB, ובמכשיר עם ערימה קטנה - שישית ממנה. */
+    private static final long CACHE_LIMIT_BYTES =
+            Math.max(2L * 1024 * 1024, Math.min(24L * 1024 * 1024, Runtime.getRuntime().maxMemory() / 6));
 
     public static final class Entry {
         public int index;
@@ -260,7 +262,7 @@ public final class ZimFile implements Closeable {
             long b = osz == 8 ? le64(offs, 8) : le32(offs, 4);
             return new RangeStream(start + 1 + a, b - a);
         }
-        byte[] data = clusterData(e.cluster, start, end, comp);
+        byte[] data = clusterData(e.cluster, start, end, comp, osz == 8);
         long a, b;
         if (osz == 8) {
             a = le64(data, 8 * e.blob);
@@ -272,15 +274,17 @@ public final class ZimFile implements Closeable {
         return new ByteArrayInputStream(data, (int) a, (int) (b - a));
     }
 
-    private byte[] clusterData(int idx, long start, long end, int comp) throws IOException {
+    private byte[] clusterData(int idx, long start, long end, int comp, boolean ext) throws IOException {
         synchronized (cache) {
             byte[] d = cache.get(idx);
             if (d != null) return d;
         }
-        byte[] packed = readAt(start + 1, (int) (end - start - 1));
+        long plen = end - start - 1;
+        if (plen < 0 || plen > 128L * 1024 * 1024) throw new IOException("bad cluster length");
+        byte[] packed = readAt(start + 1, (int) plen);
         byte[] data;
-        if (comp == 4) data = Decompressors.xz(packed);
-        else if (comp == 5) data = Decompressors.zstd(packed);
+        if (comp == 4) data = Decompressors.xz(packed, ext);
+        else if (comp == 5) data = Decompressors.zstd(packed, ext);
         else throw new IOException("unsupported compression " + comp);
         synchronized (cache) {
             cache.put(idx, data);
@@ -331,10 +335,40 @@ public final class ZimFile implements Closeable {
 
     // ---------- חיפוש כותרות ----------
 
-    /** הצעות לפי תחילית כתובת (בסכמה הישנה: A/, בחדשה: C/). רק מאמרי HTML. */
+    /**
+     * הצעות חכמות לפי תחילית כתובת: הקלדה כפי שהיא, אות סופית מתוקנת, אותיות שימוש (ה/ו/ב/...),
+     * וניחוש ראשי תיבות. התוצאות מהגרסה הראשונה קודמות.
+     */
     public List<Entry> suggest(String prefix, int max) throws IOException {
         List<Entry> out = new ArrayList<Entry>();
-        String p = prefix.trim().replace(' ', '_');
+        java.util.HashSet<Integer> seen = new java.util.HashSet<Integer>();
+        for (String v : HebText.prefixVariants(prefix)) {
+            if (out.size() >= max) break;
+            for (Entry e : suggestExact(v, max - out.size())) {
+                if (seen.add(e.index)) out.add(e);
+            }
+        }
+        return out;
+    }
+
+    /** סורק את כל מאמרי ה-HTML לפי הסדר; ה-visitor מחזיר false כדי לעצור. */
+    public interface ArticleVisitor {
+        boolean visit(Entry e, int done, int total) throws IOException;
+    }
+
+    public void forEachArticle(ArticleVisitor v) throws IOException {
+        int start = lowerBound(contentNs, new byte[0]);
+        int end = lowerBound((char) (contentNs + 1), new byte[0]);
+        int total = end - start;
+        for (int i = start; i < end; i++) {
+            Entry e = entryAt(i);
+            if (e.redirect || e.mime == null || !e.mime.startsWith("text/html")) continue;
+            if (!v.visit(e, i - start, total)) return;
+        }
+    }
+
+    private List<Entry> suggestExact(String p, int max) throws IOException {
+        List<Entry> out = new ArrayList<Entry>();
         if (p.length() == 0) return out;
         byte[] pb = p.getBytes(UTF8);
         int i = lowerBound(contentNs, pb);

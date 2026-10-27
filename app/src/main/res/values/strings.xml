@@ -9,6 +9,7 @@
     <string name="menu">תפריט</string>
     <string name="home">דף ראשי</string>
     <string name="search_hint">הקלד כותרת ערך…</string>
+    <string name="search_in_content">חיפוש בתוכן (איטי יותר, מחזיר קטעים)</string>
     <string name="no_books">לא נמצאו קבצי ZIM באחסון.\nהעתק קבצי ZIM לטלפון ולחץ על סרוק מחדש.</string>
     <string name="scanning">סורק…</string>
     <string name="need_storage">כדי לקרוא קבצי ZIM האפליקציה צריכה גישה לקבצים. לאשר?</string>
@@ -17,4 +18,7 @@
     <string name="empty_list">הרשימה ריקה</string>
     <string name="no_results">אין תוצאות</string>
     <string name="open_failed">פתיחת הקובץ נכשלה</string>
+    <string name="hint_library">▲▼ בחירה · אישור פתיחה · MENU / # תפריט</string>
+    <string name="hint_reader">▲▼ גלילה · ◀▶ קישור · אישור פתיחה · # תפריט · 9 ספרים</string>
+    <string name="hint_list">▲▼ בחירה · אישור פתיחה · MENU / # מחיקה</string>
 </resources>

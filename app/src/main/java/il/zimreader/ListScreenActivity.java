@@ -14,7 +14,7 @@ import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.List;
 
-/** סימניות או היסטוריה. MENU / לחיצה ארוכה: מחיקה. */
+/** סימניות או היסטוריה. MENU / # / לחיצה ארוכה: מחיקה. */
 public class ListScreenActivity extends Activity {
     public static final String EX_MODE = "mode";
 
@@ -34,6 +34,7 @@ public class ListScreenActivity extends Activity {
         if (mode == null) mode = Prefs.HISTORY;
         ((TextView) findViewById(R.id.header)).setText(
                 Prefs.BOOKMARKS.equals(mode) ? R.string.bookmarks : R.string.history);
+        ((TextView) findViewById(R.id.hint)).setText(R.string.hint_list);
         list = (ListView) findViewById(R.id.list);
         empty = (TextView) findViewById(R.id.empty);
 
@@ -71,7 +72,10 @@ public class ListScreenActivity extends Activity {
         }
         list.setAdapter(new RowAdapter(this, rows));
         empty.setVisibility(rows.isEmpty() ? View.VISIBLE : View.GONE);
-        if (!rows.isEmpty()) list.requestFocus();
+        if (!rows.isEmpty()) {
+            list.requestFocus();
+            list.setSelection(0);
+        }
     }
 
     private void showDelete(final int pos) {
@@ -89,11 +93,16 @@ public class ListScreenActivity extends Activity {
     }
 
     @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_MENU) {
-            showDelete(list.getSelectedItemPosition());
+    public boolean dispatchKeyEvent(KeyEvent ev) {
+        int a = Keys.map(ev);
+        if (a == Keys.MENU) {
+            if (ev.getAction() == KeyEvent.ACTION_DOWN) showDelete(list.getSelectedItemPosition());
             return true;
         }
-        return super.onKeyDown(keyCode, event);
+        if (a == Keys.BACK && ev.getKeyCode() != KeyEvent.KEYCODE_BACK) {
+            if (ev.getAction() == KeyEvent.ACTION_DOWN) finish();
+            return true;
+        }
+        return super.dispatchKeyEvent(ev);
     }
 }

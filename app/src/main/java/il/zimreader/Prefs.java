@@ -134,4 +134,56 @@ public final class Prefs {
     public static synchronized void clear(Context c, String key) {
         sp(c).edit().remove(key).apply();
     }
+
+    // ---------- ספרייה שמורה (כדי לא לסרוק מחדש בכל כניסה) ----------
+
+    public static synchronized void saveLibrary(Context c, List<Library.Book> books) {
+        JSONArray a = new JSONArray();
+        try {
+            for (Library.Book b : books) {
+                JSONObject o = new JSONObject();
+                o.put("p", b.path);
+                o.put("n", b.name);
+                o.put("s", b.size);
+                a.put(o);
+            }
+        } catch (Exception ignored) {
+        }
+        sp(c).edit().putString("library", a.toString()).apply();
+    }
+
+    public static synchronized List<Library.Book> loadLibrary(Context c) {
+        List<Library.Book> out = new ArrayList<Library.Book>();
+        try {
+            JSONArray a = new JSONArray(sp(c).getString("library", "[]"));
+            for (int i = 0; i < a.length(); i++) {
+                JSONObject o = a.getJSONObject(i);
+                Library.Book b = new Library.Book();
+                b.path = o.getString("p");
+                b.name = o.optString("n", b.path);
+                b.size = o.optLong("s");
+                out.add(b);
+            }
+        } catch (Exception ignored) {
+        }
+        return out;
+    }
+
+    // ---------- הספר האחרון והמיקום האחרון בכל ספר ----------
+
+    public static String lastBook(Context c) {
+        return sp(c).getString("lastBook", null);
+    }
+
+    public static void setLastBook(Context c, String path) {
+        sp(c).edit().putString("lastBook", path).apply();
+    }
+
+    public static String position(Context c, String book) {
+        return sp(c).getString("pos:" + book, null);
+    }
+
+    public static void setPosition(Context c, String book, String path) {
+        sp(c).edit().putString("pos:" + book, path).apply();
+    }
 }

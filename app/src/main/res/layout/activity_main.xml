@@ -31,30 +31,40 @@
             style="@style/BarButton"
             android:contentDescription="סרוק מחדש"
             android:src="@drawable/ic_refresh"
-            android:nextFocusDown="@+id/list"
             android:nextFocusLeft="@+id/btnBookmarks"
             android:nextFocusRight="@+id/btnRescan"
-            android:nextFocusUp="@id/btnRescan" />
+            android:nextFocusUp="@id/btnRescan"
+            android:nextFocusDown="@+id/list" />
 
         <ImageButton
             android:id="@+id/btnBookmarks"
             style="@style/BarButton"
             android:contentDescription="סימניות"
             android:src="@drawable/ic_bookmark"
-            android:nextFocusDown="@+id/list"
             android:nextFocusLeft="@+id/btnHistory"
             android:nextFocusRight="@+id/btnRescan"
-            android:nextFocusUp="@id/btnBookmarks" />
+            android:nextFocusUp="@id/btnBookmarks"
+            android:nextFocusDown="@+id/list" />
 
         <ImageButton
             android:id="@+id/btnHistory"
             style="@style/BarButton"
             android:contentDescription="היסטוריה"
             android:src="@drawable/ic_history"
-            android:nextFocusDown="@+id/list"
-            android:nextFocusLeft="@+id/btnHistory"
+            android:nextFocusLeft="@+id/btnMenu"
             android:nextFocusRight="@+id/btnBookmarks"
-            android:nextFocusUp="@id/btnHistory" />
+            android:nextFocusUp="@id/btnHistory"
+            android:nextFocusDown="@+id/list" />
+
+        <ImageButton
+            android:id="@+id/btnMenu"
+            style="@style/BarButton"
+            android:contentDescription="תפריט"
+            android:src="@drawable/ic_more"
+            android:nextFocusLeft="@+id/btnMenu"
+            android:nextFocusRight="@+id/btnHistory"
+            android:nextFocusUp="@id/btnMenu"
+            android:nextFocusDown="@+id/list" />
     </LinearLayout>
 
     <TextView
@@ -71,8 +81,22 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:background="?attr/zrRow"
         android:divider="#22000000"
         android:dividerHeight="1dp"
+        android:drawSelectorOnTop="true"
         android:listSelector="@drawable/list_selector"
         android:nextFocusUp="@id/btnRescan" />
+
+    <TextView
+        android:id="@+id/hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/zrHeader"
+        android:ellipsize="end"
+        android:gravity="center"
+        android:padding="4dp"
+        android:singleLine="true"
+        android:textColor="#FFBDBDBD"
+        android:textSize="11sp" />
 </LinearLayout>

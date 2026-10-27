@@ -14,7 +14,8 @@
 
     <application
         android:allowBackup="true"
-        android:icon="@drawable/ic_launcher"
+        android:largeHeap="true"
+        android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:requestLegacyExternalStorage="true"
         android:supportsRtl="true"
@@ -42,6 +43,10 @@
 
         <activity
             android:name=".ListScreenActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".KeyTestActivity"
             android:exported="false" />
 
     </application>
