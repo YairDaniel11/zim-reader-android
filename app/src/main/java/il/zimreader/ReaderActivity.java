@@ -455,7 +455,31 @@ public class ReaderActivity extends Activity {
         web.getSettings().setTextZoom(ZOOMS[idx]);
     }
 
+    private boolean diagShown;
+
+    /** בדיקת JavaScript בדף (מחזיר תשובה אסינכרונית), ואז מציג את חלון האבחון. */
     private void showDiag() {
+        diagShown = false;
+        final String probe = "(window.zr?'zr=yes':'zr=NO')+' a='+document.getElementsByTagName('a').length"
+                + "+' h='+document.documentElement.scrollHeight+' bg='"
+                + "+(window.getComputedStyle(document.body).backgroundColor)";
+        js(probe, new ValueCallback<String>() {
+            @Override
+            public void onReceiveValue(String v) {
+                showDiagDialog(v == null ? "JS: אין תשובה" : "JS: " + v);
+            }
+        });
+        hintHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (!diagShown) showDiagDialog("JS: לא הגיבה (evaluateJavascript לא עובד?)");
+            }
+        }, 2500);
+    }
+
+    private void showDiagDialog(String jsInfo) {
+        if (diagShown) return;
+        diagShown = true;
         String ver = "?";
         try {
             android.content.pm.PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0);
@@ -476,9 +500,21 @@ public class ReaderActivity extends Activity {
                         + "מקשים שהגיעו לאפליקציה: " + keysSeen + ", הוכרו: " + keysMapped
                         + ", הגיעו ל-WebView: " + webKeys + "\n"
                         + "מקש אחרון: " + lastKey + "\n"
-                        + "שוליים: " + marginName(Prefs.margin(this)))
+                        + "שוליים: " + marginName(Prefs.margin(this)) + "\n"
+                        + "עמוד: " + curPath + "\n"
+                        + "קישורים שזוהו ב-HTML: " + countLinks() + "\n"
+                        + jsInfo)
                 .setPositiveButton(R.string.ok, null)
                 .show();
+    }
+
+    private int countLinks() {
+        String html = currentHtml();
+        if (html == null) return -1;
+        Matcher m = LINK.matcher(html);
+        int n = 0;
+        while (m.find()) n++;
+        return n;
     }
 
     private void showHelp() {
