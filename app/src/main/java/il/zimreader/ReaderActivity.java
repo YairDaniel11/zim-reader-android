@@ -50,6 +50,9 @@ public class ReaderActivity extends Activity {
         titleView = (TextView) findViewById(R.id.title);
         btnBookmark = (ImageButton) findViewById(R.id.btnBookmark);
         web = (WebView) findViewById(R.id.web);
+        // כפתורי הסרגל למגע בלבד - במקשים הפוקוס נשאר על התוכן
+        int[] barIds = {R.id.btnHome, R.id.btnSearch, R.id.btnBookmark, R.id.btnMenu};
+        for (int id : barIds) findViewById(id).setFocusable(false);
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
