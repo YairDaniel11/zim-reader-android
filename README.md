@@ -8,6 +8,14 @@
 - גודל גופן, מצב לילה, ממשק מימין לשמאל.
 - עיצוב בהשראת Kiwix.
 
+## צילומי מסך
+
+|  |  |  |
+|---|---|---|
+| ![ספרייה](docs/screenshots/01-library.png) | ![ויקימילון](docs/screenshots/02-wiktionary.png) | ![החלפת ספר](docs/screenshots/03-switch-book.png) |
+| ![קישורים](docs/screenshots/04-links.png) | ![תפריט](docs/screenshots/05-menu.png) | ![אוצר הספרים](docs/screenshots/06-otzar-hasfarim.png) |
+| ![ויקי אוצריא](docs/screenshots/07-wiki-otzaria.png) | ![המכלול](docs/screenshots/08-hamichlol.png) |  |
+
 ## מקשים
 
 | מקש | פעולה |
