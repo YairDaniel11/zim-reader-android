@@ -38,7 +38,7 @@ public class KeyTestActivity extends Activity {
             int u = ev.getUnicodeChar();
             String line = KeyEvent.keyCodeToString(ev.getKeyCode()) + " (" + ev.getKeyCode() + ")"
                     + (u > 32 ? "  תו: " + (char) u : "")
-                    + "  ← " + actionName(Keys.map(ev));
+                    + "  ← " + Keys.name(Keys.map(ev));
             lines.addFirst(line);
             while (lines.size() > 12) lines.removeLast();
             StringBuilder sb = new StringBuilder();

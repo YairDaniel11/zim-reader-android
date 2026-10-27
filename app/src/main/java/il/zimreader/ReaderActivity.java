@@ -83,7 +83,35 @@ public class ReaderActivity extends Activity {
 
         String restore = state != null ? state.getString(EX_PATH) : null;
         handleIntent(getIntent(), restore);
+        web.setFocusableInTouchMode(true);
         web.requestFocus();
+        web.post(new Runnable() {
+            @Override
+            public void run() {
+                if (!toolbarHasFocus()) web.requestFocus();
+            }
+        });
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && !toolbarHasFocus()) web.requestFocus();
+    }
+
+    private final android.os.Handler hintHandler = new android.os.Handler();
+
+    /** חיווי רגעי בשורת התחתית: איזה מקש נלחץ ואיזו פעולה הופעלה (עוזר לאבחן מכשירים). */
+    private void showKeyHint(KeyEvent ev, int action) {
+        final TextView hint = (TextView) findViewById(R.id.hint);
+        hint.setText(KeyEvent.keyCodeToString(ev.getKeyCode()) + " ← " + Keys.name(action));
+        hintHandler.removeCallbacksAndMessages(null);
+        hintHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                hint.setText(R.string.hint_reader);
+            }
+        }, 1800);
     }
 
     private void click(int id, final Runnable r) {
@@ -441,6 +469,7 @@ public class ReaderActivity extends Activity {
         int a = Keys.map(ev);
         if (a == Keys.NONE) return super.dispatchKeyEvent(ev);
         boolean down = ev.getAction() == KeyEvent.ACTION_DOWN;
+        if (down && ev.getRepeatCount() == 0) showKeyHint(ev, a);
 
         // פעולות כלליות
         if (a == Keys.MENU) {
@@ -464,7 +493,11 @@ public class ReaderActivity extends Activity {
         }
 
         // המיקוד על הסרגל: המערכת מטפלת, חוץ מ"למטה" שמחזיר לתוכן
-        if (toolbarHasFocus()) {
+        int kc = ev.getKeyCode();
+        boolean dpad = kc == KeyEvent.KEYCODE_DPAD_UP || kc == KeyEvent.KEYCODE_DPAD_DOWN
+                || kc == KeyEvent.KEYCODE_DPAD_LEFT || kc == KeyEvent.KEYCODE_DPAD_RIGHT
+                || kc == KeyEvent.KEYCODE_DPAD_CENTER || kc == KeyEvent.KEYCODE_ENTER;
+        if (toolbarHasFocus() && dpad) {
             if (a == Keys.DOWN) {
                 if (down) web.requestFocus();
                 return true;

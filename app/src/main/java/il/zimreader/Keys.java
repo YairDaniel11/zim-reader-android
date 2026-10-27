@@ -60,6 +60,26 @@ public final class Keys {
         return NONE;
     }
 
+    public static String name(int a) {
+        switch (a) {
+            case UP: return "למעלה";
+            case DOWN: return "למטה";
+            case PREV_LINK: return "קישור קודם";
+            case NEXT_LINK: return "קישור הבא";
+            case OK: return "אישור";
+            case MENU: return "תפריט";
+            case BACK: return "חזרה";
+            case HOME: return "דף ראשי";
+            case SEARCH: return "חיפוש";
+            case LIBRARY: return "ספרים";
+            case LINKS: return "קישורים בדף";
+            case TOC: return "כותרות בדף";
+            case PAGE_UP: return "עמוד למעלה";
+            case PAGE_DOWN: return "עמוד למטה";
+            default: return "לא מוגדר";
+        }
+    }
+
     private static int digitOf(KeyEvent e) {
         int k = e.getKeyCode();
         if (k >= KeyEvent.KEYCODE_0 && k <= KeyEvent.KEYCODE_9) return k - KeyEvent.KEYCODE_0;
