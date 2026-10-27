@@ -30,6 +30,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         ThemeUtil.forceRtl(this);
+        Library.init(this);
 
         header = (TextView) findViewById(R.id.header);
         list = (ListView) findViewById(R.id.list);
@@ -72,6 +73,40 @@ public class MainActivity extends Activity {
             }
         });
         render();
+        openExternal(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        openExternal(intent);
+    }
+
+    /** פתיחת קובץ ZIM מאפליקציה אחרת (למשל מנהל קבצים). */
+    private void openExternal(Intent intent) {
+        if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction()) || intent.getData() == null) return;
+        android.net.Uri u = intent.getData();
+        String path = "file".equals(u.getScheme()) ? u.getPath() : u.toString();
+        intent.setAction(Intent.ACTION_MAIN); // לא לפתוח שוב בכל חזרה למסך
+        if (path != null) {
+            startActivity(new Intent(this, ReaderActivity.class).putExtra(ReaderActivity.EX_BOOK, path));
+        }
+    }
+
+    private long lastBack;
+
+    /** לחיצה כפולה על חזרה בספרייה יוצאת מהאפליקציה. */
+    @Override
+    public void onBackPressed() {
+        long now = System.currentTimeMillis();
+        if (now - lastBack < 2000) {
+            finishAffinity();
+        } else {
+            lastBack = now;
+            android.widget.Toast.makeText(this, "הקש שוב על מקש חזור כדי לצאת מהאפליקציה",
+                    android.widget.Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void openList(String mode) {
@@ -181,8 +216,13 @@ public class MainActivity extends Activity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent ev) {
-        if (Keys.map(ev) == Keys.MENU) {
+        int a = Keys.map(ev);
+        if (a == Keys.MENU) {
             if (ev.getAction() == KeyEvent.ACTION_DOWN) showMenu();
+            return true;
+        }
+        if (a == Keys.BACK && ev.getKeyCode() != KeyEvent.KEYCODE_BACK) {
+            if (ev.getAction() == KeyEvent.ACTION_DOWN) onBackPressed();
             return true;
         }
         return super.dispatchKeyEvent(ev);

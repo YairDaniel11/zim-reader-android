@@ -59,6 +59,7 @@ public class ReaderActivity extends Activity {
         setContentView(R.layout.activity_reader);
         ThemeUtil.forceRtl(this);
 
+        Library.init(this);
         titleView = (TextView) findViewById(R.id.title);
         btnBookmark = (ImageButton) findViewById(R.id.btnBookmark);
         web = (WebView) findViewById(R.id.web);
@@ -321,34 +322,78 @@ public class ReaderActivity extends Activity {
     private void showMenu() {
         final boolean dark = ThemeUtil.isDark(this);
         final String[] items = {
-                "חיפוש", "דף ראשי", "הוסף/הסר סימנייה", "קישורים בדף", "כותרות בדף", "ספרים (החלפת ספר)",
-                "סימניות", "היסטוריה", "הגדל גופן", "הקטן גופן", dark ? "מצב יום" : "מצב לילה",
-                "בדיקת מקשים", "עזרה: מקשים"};
+                "קישורים בדף", "כותרות בדף", "רשימת סימניות", "היסטוריה",
+                "שוליים: " + marginName(Prefs.margin(this)), "הגדל גופן", "הקטן גופן",
+                dark ? "מצב יום" : "מצב לילה", "בדיקת מקשים", "עזרה: מקשים"};
         new AlertDialog.Builder(this)
                 .setItems(items, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int which) {
                         switch (which) {
-                            case 0: openSearch(); break;
-                            case 1: goHome(); break;
-                            case 2: toggleBookmark(); break;
-                            case 3: showLinks(); break;
-                            case 4: showToc(); break;
-                            case 5: showBooks(); break;
-                            case 6: openList(Prefs.BOOKMARKS); break;
-                            case 7: openList(Prefs.HISTORY); break;
-                            case 8: changeZoom(1); break;
-                            case 9: changeZoom(-1); break;
-                            case 10:
+                            case 0: showLinks(); break;
+                            case 1: showToc(); break;
+                            case 2: openList(Prefs.BOOKMARKS); break;
+                            case 3: openList(Prefs.HISTORY); break;
+                            case 4: showMarginChoice(); break;
+                            case 5: changeZoom(1); break;
+                            case 6: changeZoom(-1); break;
+                            case 7:
                                 ThemeUtil.toggle(ReaderActivity.this);
                                 recreate();
                                 break;
-                            case 11: startActivity(new Intent(ReaderActivity.this, KeyTestActivity.class)); break;
+                            case 8: startActivity(new Intent(ReaderActivity.this, KeyTestActivity.class)); break;
                             default: showHelp();
                         }
                     }
                 })
                 .show();
+    }
+
+    private static String marginName(int m) {
+        return m == 0 ? "מלא" : (m == 2 ? "רחבים" : "צרים");
+    }
+
+    private void showMarginChoice() {
+        String[] names = {"רוחב מלא (קריאה בשוליים מינימליים)", "שוליים צרים (ברירת מחדל)", "שוליים רחבים"};
+        new AlertDialog.Builder(this)
+                .setTitle("שולי עמוד")
+                .setSingleChoiceItems(names, Prefs.margin(this), new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which) {
+                        Prefs.setMargin(ReaderActivity.this, which);
+                        d.dismiss();
+                        web.reload();
+                    }
+                })
+                .show();
+    }
+
+    /**
+     * עיצוב עמוד אחיד: מבטל שוליים קבועים של העמוד (למשל תפריט צד חסר ב-Vector הישן, שהשאיר חצי מסך ריק)
+     * ומציב שוליים לפי ההגדרה. סך השוליים: צרים = 1/6 מרוחב המסך, רחבים = 1/3 (מתחלק לשני הצדדים),
+     * מלא = קצת פחות מכל הרוחב.
+     */
+    private String layoutHead(String html) {
+        int m = Prefs.margin(this);
+        String side = m == 0 ? "1.5%" : (m == 2 ? "16.6%" : "8.3%");
+        String low = html.toLowerCase();
+        StringBuilder sb = new StringBuilder();
+        if (!low.contains("name=\"viewport\"") && !low.contains("name='viewport'")) {
+            sb.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+        }
+        sb.append("<style id=\"zr-layout\">")
+                .append("html,body{margin:0!important;width:auto!important;max-width:none!important;min-width:0!important}")
+                .append("body{padding-left:").append(side).append("!important;padding-right:").append(side)
+                .append("!important;box-sizing:border-box!important}")
+                .append("#content,.mw-body,.mw-body-content,#bodyContent,#mw-content-text,.vector-body,main,article{")
+                .append("margin-left:0!important;margin-right:0!important;max-width:none!important;")
+                .append("border-width:0!important;float:none!important}")
+                .append("#content,.mw-body{padding-left:0!important;padding-right:0!important}")
+                .append("img,video{max-width:100%!important;height:auto!important}table{max-width:100%}")
+                .append("</style>");
+        int at = low.indexOf("</head>");
+        if (at < 0) return sb + html;
+        return html.substring(0, at) + sb + html.substring(at);
     }
 
     private void openList(String mode) {
@@ -535,6 +580,11 @@ public class ReaderActivity extends Activity {
                 String mime = e.mime;
                 int semi = mime.indexOf(';');
                 if (semi > 0) mime = mime.substring(0, semi);
+                if (mime.equals("text/html")) {
+                    String html = new String(zim.content(e), ZimFile.UTF8);
+                    return new WebResourceResponse(mime, "UTF-8",
+                            new ByteArrayInputStream(layoutHead(html).getBytes(ZimFile.UTF8)));
+                }
                 boolean text = mime.startsWith("text/") || mime.contains("javascript")
                         || mime.contains("json") || mime.contains("xml");
                 return new WebResourceResponse(mime, text ? "UTF-8" : null, zim.open(e));

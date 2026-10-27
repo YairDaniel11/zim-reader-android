@@ -28,6 +28,29 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:mimeType="*/*" />
+                <data android:pathPattern=".*\\.zim" />
+                <data android:pathPattern=".*\\.ZIM" />
+                <data android:pathPattern=".*\\..*\\.zim" />
+                <data android:pathPattern=".*\\..*\\.ZIM" />
+                <data android:pathPattern=".*\\..*\\..*\\.zim" />
+                <data android:pathPattern=".*\\..*\\..*\\.ZIM" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:mimeType="application/x-zim" />
+                <data android:mimeType="application/zim" />
+            </intent-filter>
         </activity>
 
         <activity

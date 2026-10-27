@@ -45,6 +45,15 @@ public final class Prefs {
         sp(c).edit().putInt("zoom", v).apply();
     }
 
+    /** שולי עמוד: 0 = מלא, 1 = צרים (ברירת מחדל), 2 = רחבים. */
+    public static int margin(Context c) {
+        return sp(c).getInt("margin", 1);
+    }
+
+    public static void setMargin(Context c, int v) {
+        sp(c).edit().putInt("margin", v).apply();
+    }
+
     public static synchronized List<Item> load(Context c, String key) {
         List<Item> out = new ArrayList<Item>();
         try {

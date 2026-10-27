@@ -40,7 +40,7 @@ public final class ZimFile implements Closeable {
         public String mime;
     }
 
-    private final RandomAccessFile raf;
+    private final java.io.Closeable closer;
     private final FileChannel ch;
     private final long size;
     private final File file;
@@ -61,13 +61,26 @@ public final class ZimFile implements Closeable {
     private long cacheBytes;
 
     public ZimFile(File f) throws IOException {
+        this(new RandomAccessFile(f, "r"), f);
+    }
+
+    private ZimFile(RandomAccessFile raf, File f) throws IOException {
+        this(raf.getChannel(), raf.length(), raf, f);
+    }
+
+    /** פתיחה דרך ערוץ קיים (למשל מ-content:// URI), בלי נתיב קובץ. */
+    public ZimFile(FileChannel channel, long length, java.io.Closeable closer) throws IOException {
+        this(channel, length, closer, null);
+    }
+
+    private ZimFile(FileChannel channel, long length, java.io.Closeable closer, File f) throws IOException {
         file = f;
-        raf = new RandomAccessFile(f, "r");
-        ch = raf.getChannel();
-        size = ch.size();
+        this.closer = closer;
+        ch = channel;
+        size = length;
         ByteBuffer h = ByteBuffer.wrap(readAt(0, 80)).order(ByteOrder.LITTLE_ENDIAN);
         if (h.getInt(0) != 0x044D495A) {
-            raf.close();
+            closer.close();
             throw new IOException("not a ZIM file");
         }
         major = h.getShort(4) & 0xFFFF;
@@ -101,7 +114,7 @@ public final class ZimFile implements Closeable {
 
     @Override
     public void close() throws IOException {
-        raf.close();
+        closer.close();
     }
 
     private byte[] readAt(long pos, int len) throws IOException {

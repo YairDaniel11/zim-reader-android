@@ -1,8 +1,13 @@
 package il.zimreader;
 
+import android.content.Context;
+import android.net.Uri;
 import android.os.Environment;
+import android.os.ParcelFileDescriptor;
 
+import java.io.Closeable;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
@@ -64,10 +69,34 @@ public final class Library {
         return dot > 0 ? f.substring(0, dot) : f;
     }
 
+    private static Context appCtx;
+
+    public static void init(Context c) {
+        appCtx = c.getApplicationContext();
+    }
+
+    /** קובץ שנפתח מאפליקציה אחרת (content://) - קריאה ישירה דרך מתאר הקובץ. */
+    private static ZimFile openContent(String path) throws IOException {
+        if (appCtx == null) throw new IOException("no context");
+        final ParcelFileDescriptor pfd = appCtx.getContentResolver().openFileDescriptor(Uri.parse(path), "r");
+        if (pfd == null) throw new IOException("cannot open " + path);
+        final FileInputStream in = new FileInputStream(pfd.getFileDescriptor());
+        ZimFile z = new ZimFile(in.getChannel(), pfd.getStatSize(), new Closeable() {
+            @Override
+            public void close() throws IOException {
+                in.close();
+                pfd.close();
+            }
+        });
+        String t = z.metadata("Title");
+        if (t != null && t.trim().length() > 0) names.put(path, t.trim());
+        return z;
+    }
+
     public static synchronized ZimFile open(String path) throws IOException {
         ZimFile z = open.get(path);
         if (z == null) {
-            z = new ZimFile(new File(path));
+            z = path.startsWith("content://") ? openContent(path) : new ZimFile(new File(path));
             // משאירים עד 3 קבצים פתוחים
             if (open.size() >= 3) {
                 String victim = open.keySet().iterator().next();
