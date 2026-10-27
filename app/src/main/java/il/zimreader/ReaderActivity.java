@@ -51,6 +51,8 @@ public class ReaderActivity extends Activity {
     private String curPath;
     private String pendingFind;
     private boolean clearHist;
+    private boolean legacyCss;
+    private il.zimreader.zim.CssCompat cssCompat = new il.zimreader.zim.CssCompat();
 
     @Override
     protected void onCreate(Bundle state) {
@@ -74,6 +76,8 @@ public class ReaderActivity extends Activity {
         s.setTextZoom(Prefs.zoom(this));
         web.setBackgroundColor(ThemeUtil.isDark(this) ? 0xFF212121 : 0xFFFFFFFF);
         web.setWebViewClient(new Client());
+        legacyCss = Prefs.forceLegacyCss(this)
+                || il.zimreader.zim.CssCompat.isLegacyWebView(s.getUserAgentString(), Build.VERSION.SDK_INT);
 
         click(R.id.btnHome, new Runnable() { public void run() { goHome(); } });
         click(R.id.btnSearch, new Runnable() { public void run() { openSearch(); } });
@@ -156,6 +160,7 @@ public class ReaderActivity extends Activity {
                 bookId = Library.idOf(book);
                 // היסטוריית הדפים של הספר הקודם לא רלוונטית לספר החדש
                 clearHist = switching;
+                cssCompat = new il.zimreader.zim.CssCompat();
             }
             Prefs.setLastBook(this, book);
             if (path == null) path = Prefs.position(this, book);
@@ -613,8 +618,13 @@ public class ReaderActivity extends Activity {
                 String mime = e.mime;
                 int semi = mime.indexOf(';');
                 if (semi > 0) mime = mime.substring(0, semi);
+                if (legacyCss && mime.equals("text/css")) {
+                    String css = cssCompat.fixCss(new String(zim.content(e), ZimFile.UTF8));
+                    return new WebResourceResponse(mime, "UTF-8", new ByteArrayInputStream(css.getBytes(ZimFile.UTF8)));
+                }
                 if (mime.equals("text/html")) {
                     String html = new String(zim.content(e), ZimFile.UTF8);
+                    if (legacyCss) html = cssCompat.fixHtml(html);
                     return new WebResourceResponse(mime, "UTF-8",
                             new ByteArrayInputStream(layoutHead(html).getBytes(ZimFile.UTF8)));
                 }

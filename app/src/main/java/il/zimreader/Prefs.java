@@ -45,6 +45,11 @@ public final class Prefs {
         sp(c).edit().putInt("zoom", v).apply();
     }
 
+    /** בדיקות: מכריח מצב תאימות CSS ל-WebView ישן (משתני CSS) גם במכשיר חדש. */
+    public static boolean forceLegacyCss(Context c) {
+        return sp(c).getBoolean("legacyCss", false);
+    }
+
     /** שולי עמוד: 0 = מלא, 1 = צרים (ברירת מחדל), 2 = רחבים. */
     public static int margin(Context c) {
         return sp(c).getInt("margin", 1);
