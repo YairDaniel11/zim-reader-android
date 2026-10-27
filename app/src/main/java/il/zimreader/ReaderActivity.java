@@ -50,6 +50,7 @@ public class ReaderActivity extends Activity {
     private String bookId;
     private String curPath;
     private String pendingFind;
+    private boolean clearHist;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -120,9 +121,12 @@ public class ReaderActivity extends Activity {
     private void openBook(String book, String path) {
         try {
             if (!book.equals(bookPath)) {
+                boolean switching = bookPath != null;
                 zim = Library.open(book);
                 bookPath = book;
                 bookId = Library.idOf(book);
+                // היסטוריית הדפים של הספר הקודם לא רלוונטית לספר החדש
+                clearHist = switching;
             }
             Prefs.setLastBook(this, book);
             if (path == null) path = Prefs.position(this, book);
@@ -560,6 +564,10 @@ public class ReaderActivity extends Activity {
         public void onPageFinished(WebView view, String url) {
             String p = pathFromUrl(url);
             if (p == null) return;
+            if (clearHist) {
+                clearHist = false;
+                view.clearHistory();
+            }
             curPath = p;
             String t = view.getTitle();
             if (t == null || t.length() == 0 || t.startsWith("https://zim.local")) t = p.replace('_', ' ');
