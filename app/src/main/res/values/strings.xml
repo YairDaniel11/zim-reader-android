@@ -9,7 +9,7 @@
     <string name="menu">תפריט</string>
     <string name="home">דף ראשי</string>
     <string name="search_hint">הקלד כותרת ערך…</string>
-    <string name="search_in_content">חיפוש בתוכן (איטי יותר, מחזיר קטעים)</string>
+    <string name="search_in_content">חיפוש בתוכן (איטי - מתאים לספרים קטנים)</string>
     <string name="no_books">לא נמצאו קבצי ZIM באחסון.\nהעתק קבצי ZIM לטלפון ולחץ על סרוק מחדש.</string>
     <string name="scanning">סורק…</string>
     <string name="need_storage">כדי לקרוא קבצי ZIM האפליקציה צריכה גישה לקבצים. לאשר?</string>
