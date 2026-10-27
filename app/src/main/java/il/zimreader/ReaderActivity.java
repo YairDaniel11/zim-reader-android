@@ -423,6 +423,9 @@ public class ReaderActivity extends Activity {
                 .append("border-width:0!important;float:none!important}")
                 .append("#content,.mw-body{padding-left:0!important;padding-right:0!important}")
                 .append("img,video{max-width:100%!important;height:auto!important}table{max-width:100%}")
+                .append("pre,code,kbd,samp{white-space:pre-wrap!important;word-wrap:break-word!important;")
+                .append("max-width:100%!important;box-sizing:border-box!important}")
+                .append("html,body{overflow-x:hidden!important}")
                 .append("</style>");
         int at = low.indexOf("</head>");
         if (at < 0) return sb + html;
