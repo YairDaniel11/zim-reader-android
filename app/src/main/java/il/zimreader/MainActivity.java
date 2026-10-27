@@ -199,7 +199,7 @@ public class MainActivity extends Activity {
 
     private void showMenu() {
         final boolean dark = ThemeUtil.isDark(this);
-        String[] items = {"סרוק מחדש", "סימניות", "היסטוריה", dark ? "מצב יום" : "מצב לילה", "בדיקת מקשים"};
+        String[] items = {"סרוק מחדש", "סימניות", "היסטוריה", dark ? "מצב יום" : "מצב לילה"};
         new AlertDialog.Builder(this)
                 .setItems(items, new DialogInterface.OnClickListener() {
                     @Override
@@ -208,12 +208,9 @@ public class MainActivity extends Activity {
                             case 0: startScan(); break;
                             case 1: openList(Prefs.BOOKMARKS); break;
                             case 2: openList(Prefs.HISTORY); break;
-                            case 3:
+                            default:
                                 ThemeUtil.toggle(MainActivity.this);
                                 recreate();
-                                break;
-                            default:
-                                startActivity(new Intent(MainActivity.this, KeyTestActivity.class));
                         }
                     }
                 })

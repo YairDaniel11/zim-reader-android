@@ -366,7 +366,7 @@ public class ReaderActivity extends Activity {
         final String[] items = {
                 "קישורים בדף", "כותרות בדף", "רשימת סימניות", "היסטוריה",
                 "שוליים: " + marginName(Prefs.margin(this)), "הגדל גופן", "הקטן גופן",
-                dark ? "מצב יום" : "מצב לילה", "בדיקת מקשים", "אבחון (לשליחת צילום)", "עזרה: מקשים"};
+                dark ? "מצב יום" : "מצב לילה", "עזרה: מקשים"};
         new AlertDialog.Builder(this)
                 .setItems(items, new DialogInterface.OnClickListener() {
                     @Override
@@ -383,8 +383,6 @@ public class ReaderActivity extends Activity {
                                 ThemeUtil.toggle(ReaderActivity.this);
                                 recreate();
                                 break;
-                            case 8: startActivity(new Intent(ReaderActivity.this, KeyTestActivity.class)); break;
-                            case 9: showDiag(); break;
                             default: showHelp();
                         }
                     }
@@ -433,9 +431,11 @@ public class ReaderActivity extends Activity {
                 .append("border-width:0!important;float:none!important}")
                 .append("#content,.mw-body{padding-left:0!important;padding-right:0!important}")
                 .append("img,video{max-width:100%!important;height:auto!important}table{max-width:100%}")
-                .append("pre,code,kbd,samp{white-space:pre-wrap!important;word-wrap:break-word!important;")
-                .append("max-width:100%!important;box-sizing:border-box!important}")
-                .append("html,body{overflow-x:hidden!important}")
+                .append("pre,code,kbd,samp{white-space:pre-wrap!important;word-wrap:break-word!important}")
+                .append("*{max-width:100%!important;box-sizing:border-box!important}")
+                .append("div,section,article,aside,figure,center,form{width:auto!important;min-width:0!important}")
+                .append("table{width:100%!important;table-layout:auto!important}")
+                .append("td,th{min-width:0!important;word-break:break-word;overflow-wrap:break-word}")
                 .append("</style>");
         int at = low.indexOf("</head>");
         if (at < 0) return sb + html;
@@ -531,7 +531,7 @@ public class ReaderActivity extends Activity {
                         + "* : חיפוש\n"
                         + "# או MENU או מקש רך שמאלי: תפריט\n"
                         + "חזרה או מקש רך ימני או C: אחורה / יציאה\n\n"
-                        + "אם מקש לא עובד: תפריט > בדיקת מקשים.")
+                        + "חצים ימינה/שמאלה בדף בלי קישורים: הזזת העמוד הצידה.")
                 .setPositiveButton(R.string.ok, null)
                 .show();
     }
@@ -608,11 +608,13 @@ public class ReaderActivity extends Activity {
         return true;
     }
 
-    private void navLink(int dir) {
+    private void navLink(final int dir) {
         js("window.zr?zr.nav(" + dir + "):-1", new ValueCallback<String>() {
             @Override
             public void onReceiveValue(String v) {
-                if ("0".equals(v)) Toast.makeText(ReaderActivity.this, "אין קישורים בדף", Toast.LENGTH_SHORT).show();
+                // אין קישורים (או שה-JavaScript לא רץ): החצים מזיזים את העמוד הצידה
+                if (!"0".equals(v) && !"-1".equals(v) && v != null && !"null".equals(v)) return;
+                web.scrollBy(dir > 0 ? -web.getWidth() / 3 : web.getWidth() / 3, 0);
             }
         });
     }
