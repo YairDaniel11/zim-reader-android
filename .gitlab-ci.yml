@@ -1,0 +1,36 @@
+image: openjdk:17-jdk
+
+variables:
+  ANDROID_SDK_TOOLS: "11076708"
+  GRADLE_VERSION: "8.7"
+
+stages:
+  - build
+
+before_script:
+  - apt-get update -qq && apt-get install -y -qq wget unzip
+  - wget -q https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_SDK_TOOLS}_latest.zip
+  - unzip -q commandlinetools-linux-${ANDROID_SDK_TOOLS}_latest.zip -d android-sdk
+  - mkdir -p android-sdk/cmdline-tools/latest
+  - mv android-sdk/cmdline-tools/bin android-sdk/cmdline-tools/lib android-sdk/cmdline-tools/NOTICE.txt android-sdk/cmdline-tools/source.properties android-sdk/cmdline-tools/latest/ 2>/dev/null || true
+  - export ANDROID_HOME=$PWD/android-sdk
+  - export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+  - yes | sdkmanager --licenses > /dev/null || true
+  - sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+  - wget -q https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip
+  - unzip -q gradle-${GRADLE_VERSION}-bin.zip
+  - export PATH=$PATH:$PWD/gradle-${GRADLE_VERSION}/bin
+
+cache:
+  paths:
+    - .gradle/
+
+build_apk:
+  stage: build
+  script:
+    - sed -i "s/versionCode [0-9]*/versionCode ${CI_PIPELINE_IID}/" app/build.gradle
+    - gradle assembleDebug --no-daemon
+  artifacts:
+    paths:
+      - app/build/outputs/apk/debug/*.apk
+    expire_in: 30 days

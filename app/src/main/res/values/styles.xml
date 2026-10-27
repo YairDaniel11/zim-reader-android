@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- בלי AndroidX: ערכת נושא גולמית עם attrs מופשטים -->
+    <style name="AppTheme" parent="android:Theme.Holo.Light.NoActionBar">
+        <item name="zrBg">@color/bg_light</item>
+        <item name="zrHeader">@color/header_black</item>
+        <item name="zrAccent">@color/accent_blue</item>
+        <item name="zrText">@color/text_dark</item>
+        <item name="zrTextSecondary">@color/text_dark_secondary</item>
+        <item name="zrRow">@color/row_light</item>
+        <item name="android:windowBackground">@color/bg_light</item>
+    </style>
+
+    <style name="AppTheme.Light" parent="AppTheme" />
+
+    <style name="AppTheme.Dark" parent="android:Theme.Holo.NoActionBar">
+        <item name="zrBg">@color/bg_night</item>
+        <item name="zrHeader">@color/header_night</item>
+        <item name="zrAccent">@color/accent_blue_light</item>
+        <item name="zrText">@color/text_night</item>
+        <item name="zrTextSecondary">@color/text_night_secondary</item>
+        <item name="zrRow">@color/row_night</item>
+        <item name="android:windowBackground">@color/bg_night</item>
+    </style>
+
+    <style name="BarButton">
+        <item name="android:layout_width">48dp</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:background">@drawable/bar_button_bg</item>
+        <item name="android:scaleType">center</item>
+        <item name="android:focusable">true</item>
+    </style>
+</resources>

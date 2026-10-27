@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <attr name="zrBg" format="color" />
+    <attr name="zrHeader" format="color" />
+    <attr name="zrAccent" format="color" />
+    <attr name="zrText" format="color" />
+    <attr name="zrTextSecondary" format="color" />
+    <attr name="zrRow" format="color" />
+</resources>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-sdk tools:overrideLibrary="com.github.luben.zstd_jni" />
+
+    <!-- חובה למכשיר מקשים בלי מסך מגע -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+    <!-- קריאת קבצי ZIM מהאחסון: עד אנדרואיד 12 ההרשאה הרגילה, מאנדרואיד 11 גישה לכל הקבצים -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:requestLegacyExternalStorage="true"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ReaderActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden|keyboard"
+            android:exported="false"
+            android:launchMode="singleTop" />
+
+        <activity
+            android:name=".SearchActivity"
+            android:exported="false"
+            android:windowSoftInputMode="stateVisible|adjustResize" />
+
+        <activity
+            android:name=".ListScreenActivity"
+            android:exported="false" />
+
+    </application>
+
+</manifest>

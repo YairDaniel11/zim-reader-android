@@ -1,0 +1,46 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'il.zimreader'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "il.zimreader"
+        // minSdk קבוע (אנדרואיד 4.4), targetSdk עדכני
+        minSdk 19
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    packaging {
+        resources {
+            excludes += ['META-INF/versions/**', 'META-INF/LICENSE*', 'META-INF/NOTICE*', 'META-INF/DEPENDENCIES']
+        }
+    }
+
+    // שם APK קריא במקום app-debug.apk
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            outputFileName = "${rootProject.name}-${variant.name}-${variant.versionName}.apk"
+        }
+    }
+}
+
+dependencies {
+    // פענוח ZIM: zstd (נייטיב, עם גיבוי Java טהור) ו-xz
+    implementation 'com.github.luben:zstd-jni:1.5.5-6@aar'
+    implementation 'io.airlift:aircompressor:0.27'
+    implementation 'org.tukaani:xz:1.9'
+}
