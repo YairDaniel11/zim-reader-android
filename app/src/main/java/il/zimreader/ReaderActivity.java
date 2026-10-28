@@ -377,6 +377,65 @@ public class ReaderActivity extends Activity {
     // ---------- כרטיסיות ----------
 
     private int pendingScrollY;
+    private int lastY;                    // מיקום הגלילה האחרון הידוע בעמוד הנוכחי
+    private boolean tabSwitching;         // מעבר יזום בין כרטיסיות (לא ליצור כרטיסייה חדשה)
+    private boolean tabInitialized;
+    private String tabBook, tabPath;      // העמוד שהכרטיסייה הנוכחית מציגה
+    private final android.os.Handler pollHandler = new android.os.Handler();
+    private final Runnable scrollPoller = new Runnable() {
+        @Override
+        public void run() {
+            withScrollY(new ValueCallback<Integer>() {
+                @Override
+                public void onReceiveValue(Integer y) {
+                    lastY = y;
+                }
+            });
+            pollHandler.postDelayed(this, 1000);
+        }
+    };
+
+    /** מכניס עמוד לראש הרשימה (מסיר כפילות), עד 10 כרטיסיות. מחזיר את הפריט. */
+    private Prefs.Item pushTab(List<Prefs.Item> tabs, String book, String path) {
+        Prefs.Item found = null;
+        for (int i = 0; i < tabs.size(); i++) {
+            if (tabs.get(i).book.equals(book) && tabs.get(i).path.equals(path)) {
+                found = tabs.remove(i);
+                break;
+            }
+        }
+        if (found == null) {
+            found = new Prefs.Item();
+            found.book = book;
+            found.path = path;
+            found.title = path;
+            found.y = 0;
+        }
+        found.ts = System.currentTimeMillis();
+        tabs.add(0, found);
+        while (tabs.size() > 10) tabs.remove(tabs.size() - 1);
+        tabBook = book;
+        tabPath = path;
+        return found;
+    }
+
+    /** נקרא בתחילת טעינת עמוד: שומר את העמוד הקודם (עם הגלילה שלו) ופותח כרטיסייה לעמוד החדש. */
+    private void onNavigate(String p) {
+        if (tabSwitching) return;
+        List<Prefs.Item> tabs = Prefs.tabs(this);
+        if (!tabInitialized) {
+            tabInitialized = true;
+            Prefs.Item it = pushTab(tabs, bookPath, p);
+            pendingScrollY = it.y;           // חזרה לאותו עמוד: ממשיכים מהמקום המדויק
+            Prefs.saveTabs(this, tabs);
+            return;
+        }
+        if (p.equals(tabPath) && bookPath.equals(tabBook)) return;   // אותו עמוד (למשל קפיצה לעוגן)
+        if (!tabs.isEmpty()) tabs.get(0).y = lastY;
+        pushTab(tabs, bookPath, p).y = 0;
+        Prefs.saveTabs(this, tabs);
+        lastY = 0;
+    }
 
     /** מעדכן את הכרטיסייה הנוכחית (הראשונה ברשימה) בעמוד ובמיקום הגלילה. */
     private void syncCurrentTab(int y) {
@@ -425,7 +484,6 @@ public class ReaderActivity extends Activity {
             Prefs.Item t = tabs.get(i);
             labels.add((i == 0 ? "● " : (i + 1) + ". ") + t.title.replace('_', ' ') + "  ·  " + Library.nameOf(t.book));
         }
-        labels.add("＋ כרטיסייה חדשה (העתק של הדף הנוכחי)");
         if (n > 1) labels.add("✕ סגור את הכרטיסייה הנוכחית");
         new AlertDialog.Builder(this)
                 .setTitle("כרטיסיות (" + n + "/10)")
@@ -434,8 +492,6 @@ public class ReaderActivity extends Activity {
                     public void onClick(DialogInterface d, int which) {
                         if (which < n) {
                             if (which > 0) switchToTab(which);
-                        } else if (which == n) {
-                            newTab();
                         } else {
                             closeCurrentTab();
                         }
@@ -444,28 +500,14 @@ public class ReaderActivity extends Activity {
                 .show();
     }
 
-    private void newTab() {
-        List<Prefs.Item> tabs = Prefs.tabs(this);
-        if (tabs.isEmpty()) return;
-        Prefs.Item copy = new Prefs.Item();
-        Prefs.Item cur = tabs.get(0);
-        copy.book = cur.book;
-        copy.path = cur.path;
-        copy.title = cur.title;
-        copy.y = cur.y;
-        copy.ts = System.currentTimeMillis();
-        tabs.add(0, copy);
-        while (tabs.size() > 10) tabs.remove(tabs.size() - 1);
-        Prefs.saveTabs(this, tabs);
-        Toast.makeText(this, "נפתחה כרטיסייה חדשה (" + tabs.size() + ")", Toast.LENGTH_SHORT).show();
-    }
-
     private void switchToTab(int index) {
         List<Prefs.Item> tabs = Prefs.tabs(this);
         if (index <= 0 || index >= tabs.size()) return;
         Prefs.Item it = tabs.remove(index);
         tabs.add(0, it);
         Prefs.saveTabs(this, tabs);
+        tabBook = it.book;
+        tabPath = it.path;
         openTab(it);
     }
 
@@ -474,17 +516,28 @@ public class ReaderActivity extends Activity {
         if (tabs.size() <= 1) return;
         tabs.remove(0);
         Prefs.saveTabs(this, tabs);
+        tabBook = tabs.get(0).book;
+        tabPath = tabs.get(0).path;
         openTab(tabs.get(0));
     }
 
     private void openTab(Prefs.Item it) {
+        tabSwitching = true;
         pendingScrollY = it.y;
         openBook(it.book, it.path);
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        pollHandler.removeCallbacks(scrollPoller);
+        pollHandler.postDelayed(scrollPoller, 1000);
+    }
+
+    @Override
     protected void onPause() {
         super.onPause();
+        pollHandler.removeCallbacks(scrollPoller);
         // שומר את מיקום הגלילה של הכרטיסייה הנוכחית
         withScrollY(new ValueCallback<Integer>() {
             @Override
@@ -606,7 +659,8 @@ public class ReaderActivity extends Activity {
                         + "# או MENU או מקש רך שמאלי: תפריט\n"
                         + "חזרה או מקש רך ימני או C: אחורה / יציאה\n\n"
                         + "חצים ימינה/שמאלה בדף בלי קישורים: הזזת העמוד הצידה.\n"
-                        + "תפריט > כרטיסיות: עד 10 כרטיסיות, כל אחת זוכרת את מיקום הגלילה המדויק.")
+                        + "תפריט > כרטיסיות: העמודים האחרונים (עד 10), כל אחד עם מיקום הגלילה המדויק שלו. "
+                        + "מעבר לעמוד אחר שומר אוטומטית את הקודם.")
                 .setPositiveButton(R.string.ok, null)
                 .show();
     }
@@ -835,7 +889,10 @@ public class ReaderActivity extends Activity {
         @Override
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
             String p = pathFromUrl(url);
-            if (p != null) curPath = p;
+            if (p != null) {
+                curPath = p;
+                onNavigate(p);
+            }
         }
 
         @Override
@@ -855,6 +912,8 @@ public class ReaderActivity extends Activity {
             updateBookmarkIcon();
             final int restoreY = pendingScrollY;
             pendingScrollY = 0;
+            tabSwitching = false;
+            lastY = restoreY;
             syncCurrentTab(restoreY > 0 ? restoreY : 0);
             if (restoreY > 0) {
                 final String scroll = "window.scrollTo(0," + restoreY + ")";
