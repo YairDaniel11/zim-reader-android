@@ -42,7 +42,7 @@ public class ReaderActivity extends Activity {
     private static final String BASE = "https://zim.local/";
     private static final int[] ZOOMS = {60, 80, 100, 120, 150, 180, 220};
 
-    private WebView web;
+    private ZimWebView web;
     private TextView titleView;
     private ImageButton btnBookmark;
     private ZimFile zim;
@@ -64,7 +64,7 @@ public class ReaderActivity extends Activity {
         Library.init(this);
         titleView = (TextView) findViewById(R.id.title);
         btnBookmark = (ImageButton) findViewById(R.id.btnBookmark);
-        web = (WebView) findViewById(R.id.web);
+        web = (ZimWebView) findViewById(R.id.web);
         ((TextView) findViewById(R.id.hint)).setText(R.string.hint_reader);
 
         WebSettings s = web.getSettings();
@@ -76,6 +76,12 @@ public class ReaderActivity extends Activity {
         s.setTextZoom(Prefs.zoom(this));
         web.setBackgroundColor(ThemeUtil.isDark(this) ? 0xFF212121 : 0xFFFFFFFF);
         web.setWebViewClient(new Client());
+        web.setPreImeHandler(new ZimWebView.PreImeHandler() {
+            @Override
+            public boolean handle(KeyEvent e) {
+                return handleKey(e);
+            }
+        });
         legacyCss = Prefs.forceLegacyCss(this)
                 || il.zimreader.zim.CssCompat.isLegacyWebView(s.getUserAgentString(), Build.VERSION.SDK_INT);
 
@@ -306,13 +312,25 @@ public class ReaderActivity extends Activity {
                 .show();
     }
 
+    private static String jsString(String x) {
+        return "'" + x.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ").replace("\r", " ") + "'";
+    }
+
+    private static String unescapeHtml(String x) {
+        return x.replace("&quot;", "\"").replace("&#39;", "'").replace("&lt;", "<").replace("&gt;", ">")
+                .replace("&amp;", "&");
+    }
+
     private void showToc() {
         String html = currentHtml();
         if (html == null || curPath == null) return;
         final List<String> ids = new ArrayList<String>();
+        final List<Integer> positions = new ArrayList<Integer>();
         List<String> labels = new ArrayList<String>();
         Matcher m = HEADING.matcher(html);
+        int n = -1;
         while (m.find() && labels.size() < 500) {
+            n++;
             String label = FullText.htmlToText(m.group(3));
             if (label.length() == 0) continue;
             Matcher im = ID.matcher(m.group(2));
@@ -326,28 +344,154 @@ public class ReaderActivity extends Activity {
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < level; i++) sb.append("  ");
             labels.add(sb + label);
-            ids.add(id == null ? "" : id);
+            ids.add(id == null ? "" : unescapeHtml(id));
+            positions.add(n);
         }
         if (labels.isEmpty()) {
             Toast.makeText(this, "אין כותרות בדף", Toast.LENGTH_SHORT).show();
             return;
         }
-        final int[] idx = {0};
         new AlertDialog.Builder(this)
                 .setTitle("כותרות בדף")
                 .setItems(labels.toArray(new String[0]), new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int which) {
-                        String id = ids.get(which);
-                        if (id.length() > 0) {
-                            web.loadUrl(pageUrl(curPath) + "#" + Uri.encode(id));
+                        final String id = ids.get(which);
+                        // קודם לפי מזהה, ואם אין - לפי מספר הכותרת בדף (כולל כותרות שדולגו בתצוגה)
+                        String code = "(function(){var e=" + (id.length() > 0 ? "document.getElementById(" + jsString(id) + ")" : "null")
+                                + ";if(!e){var h=document.querySelectorAll('h1,h2,h3,h4,h5,h6');e=h[" + positions.get(which)
+                                + "];}if(e){e.scrollIntoView(true);return 1;}return 0;})()";
+                        js(code, new ValueCallback<String>() {
+                            @Override
+                            public void onReceiveValue(String v) {
+                                if (!"1".equals(v) && id.length() > 0) {
+                                    web.loadUrl(pageUrl(curPath) + "#" + Uri.encode(id));
+                                }
+                            }
+                        });
+                    }
+                })
+                .show();
+    }
+
+    // ---------- כרטיסיות ----------
+
+    private int pendingScrollY;
+
+    /** מעדכן את הכרטיסייה הנוכחית (הראשונה ברשימה) בעמוד ובמיקום הגלילה. */
+    private void syncCurrentTab(int y) {
+        if (bookPath == null || curPath == null) return;
+        List<Prefs.Item> tabs = Prefs.tabs(this);
+        Prefs.Item it = tabs.isEmpty() ? new Prefs.Item() : tabs.get(0);
+        it.book = bookPath;
+        it.path = curPath;
+        it.title = pageTitle();
+        it.ts = System.currentTimeMillis();
+        if (y >= 0) it.y = y;
+        if (tabs.isEmpty()) tabs.add(it);
+        Prefs.saveTabs(this, tabs);
+    }
+
+    private void withScrollY(final ValueCallback<Integer> cb) {
+        js("(window.pageYOffset||document.documentElement.scrollTop||document.body.scrollTop||0)",
+                new ValueCallback<String>() {
+                    @Override
+                    public void onReceiveValue(String v) {
+                        int y = 0;
+                        try {
+                            if (v != null && !"null".equals(v)) y = (int) Float.parseFloat(v);
+                        } catch (NumberFormatException ignored) {
+                        }
+                        cb.onReceiveValue(y);
+                    }
+                });
+    }
+
+    private void showTabs() {
+        withScrollY(new ValueCallback<Integer>() {
+            @Override
+            public void onReceiveValue(Integer y) {
+                syncCurrentTab(y);
+                showTabsDialog();
+            }
+        });
+    }
+
+    private void showTabsDialog() {
+        final List<Prefs.Item> tabs = Prefs.tabs(this);
+        final int n = tabs.size();
+        List<String> labels = new ArrayList<String>();
+        for (int i = 0; i < n; i++) {
+            Prefs.Item t = tabs.get(i);
+            labels.add((i == 0 ? "● " : (i + 1) + ". ") + t.title.replace('_', ' ') + "  ·  " + Library.nameOf(t.book));
+        }
+        labels.add("＋ כרטיסייה חדשה (העתק של הדף הנוכחי)");
+        if (n > 1) labels.add("✕ סגור את הכרטיסייה הנוכחית");
+        new AlertDialog.Builder(this)
+                .setTitle("כרטיסיות (" + n + "/10)")
+                .setItems(labels.toArray(new String[0]), new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which) {
+                        if (which < n) {
+                            if (which > 0) switchToTab(which);
+                        } else if (which == n) {
+                            newTab();
                         } else {
-                            js("var h=document.querySelectorAll('h1,h2,h3,h4,h5,h6');"
-                                    + "if(h[" + which + "])h[" + which + "].scrollIntoView();", null);
+                            closeCurrentTab();
                         }
                     }
                 })
                 .show();
+    }
+
+    private void newTab() {
+        List<Prefs.Item> tabs = Prefs.tabs(this);
+        if (tabs.isEmpty()) return;
+        Prefs.Item copy = new Prefs.Item();
+        Prefs.Item cur = tabs.get(0);
+        copy.book = cur.book;
+        copy.path = cur.path;
+        copy.title = cur.title;
+        copy.y = cur.y;
+        copy.ts = System.currentTimeMillis();
+        tabs.add(0, copy);
+        while (tabs.size() > 10) tabs.remove(tabs.size() - 1);
+        Prefs.saveTabs(this, tabs);
+        Toast.makeText(this, "נפתחה כרטיסייה חדשה (" + tabs.size() + ")", Toast.LENGTH_SHORT).show();
+    }
+
+    private void switchToTab(int index) {
+        List<Prefs.Item> tabs = Prefs.tabs(this);
+        if (index <= 0 || index >= tabs.size()) return;
+        Prefs.Item it = tabs.remove(index);
+        tabs.add(0, it);
+        Prefs.saveTabs(this, tabs);
+        openTab(it);
+    }
+
+    private void closeCurrentTab() {
+        List<Prefs.Item> tabs = Prefs.tabs(this);
+        if (tabs.size() <= 1) return;
+        tabs.remove(0);
+        Prefs.saveTabs(this, tabs);
+        openTab(tabs.get(0));
+    }
+
+    private void openTab(Prefs.Item it) {
+        pendingScrollY = it.y;
+        openBook(it.book, it.path);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // שומר את מיקום הגלילה של הכרטיסייה הנוכחית
+        withScrollY(new ValueCallback<Integer>() {
+            @Override
+            public void onReceiveValue(Integer y) {
+                syncCurrentTab(y);
+            }
+        });
     }
 
     // ---------- תפריט ----------
@@ -355,7 +499,7 @@ public class ReaderActivity extends Activity {
     private void showMenu() {
         final boolean dark = ThemeUtil.isDark(this);
         final String[] items = {
-                "קישורים בדף", "כותרות בדף", "רשימת סימניות", "היסטוריה",
+                "כרטיסיות", "קישורים בדף", "כותרות בדף", "רשימת סימניות", "היסטוריה",
                 "שוליים: " + marginName(Prefs.margin(this)), "הגדל גופן", "הקטן גופן",
                 dark ? "מצב יום" : "מצב לילה", "עזרה: מקשים"};
         new AlertDialog.Builder(this)
@@ -363,14 +507,15 @@ public class ReaderActivity extends Activity {
                     @Override
                     public void onClick(DialogInterface d, int which) {
                         switch (which) {
-                            case 0: showLinks(); break;
-                            case 1: showToc(); break;
-                            case 2: openList(Prefs.BOOKMARKS); break;
-                            case 3: openList(Prefs.HISTORY); break;
-                            case 4: showMarginChoice(); break;
-                            case 5: changeZoom(1); break;
-                            case 6: changeZoom(-1); break;
-                            case 7:
+                            case 0: showTabs(); break;
+                            case 1: showLinks(); break;
+                            case 2: showToc(); break;
+                            case 3: openList(Prefs.BOOKMARKS); break;
+                            case 4: openList(Prefs.HISTORY); break;
+                            case 5: showMarginChoice(); break;
+                            case 6: changeZoom(1); break;
+                            case 7: changeZoom(-1); break;
+                            case 8:
                                 ThemeUtil.toggle(ReaderActivity.this);
                                 recreate();
                                 break;
@@ -460,7 +605,8 @@ public class ReaderActivity extends Activity {
                         + "* : חיפוש\n"
                         + "# או MENU או מקש רך שמאלי: תפריט\n"
                         + "חזרה או מקש רך ימני או C: אחורה / יציאה\n\n"
-                        + "חצים ימינה/שמאלה בדף בלי קישורים: הזזת העמוד הצידה.")
+                        + "חצים ימינה/שמאלה בדף בלי קישורים: הזזת העמוד הצידה.\n"
+                        + "תפריט > כרטיסיות: עד 10 כרטיסיות, כל אחת זוכרת את מיקום הגלילה המדויק.")
                 .setPositiveButton(R.string.ok, null)
                 .show();
     }
@@ -475,9 +621,18 @@ public class ReaderActivity extends Activity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent ev) {
+        return handleKey(ev) || super.dispatchKeyEvent(ev);
+    }
+
+    /** מטפל במקש; true = נצרך. נקרא גם לפני ה-IME (מ-ZimWebView), כדי שמקשי ספרות ו"חזרה" לא ייבלעו. */
+    private boolean handleKey(KeyEvent ev) {
         int a = Keys.map(ev);
         boolean down = ev.getAction() == KeyEvent.ACTION_DOWN;
-        if (a == Keys.NONE) return super.dispatchKeyEvent(ev);
+        if (ev.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+            if (down && ev.getRepeatCount() == 0) onBackPressed();
+            return true;
+        }
+        if (a == Keys.NONE) return false;
         if (down && ev.getRepeatCount() == 0) showKeyHint(ev, a);
 
         // פעולות כלליות
@@ -486,7 +641,6 @@ public class ReaderActivity extends Activity {
             return true;
         }
         if (a == Keys.BACK) {
-            if (ev.getKeyCode() == KeyEvent.KEYCODE_BACK) return super.dispatchKeyEvent(ev);
             if (down) onBackPressed();
             return true;
         }
@@ -511,25 +665,50 @@ public class ReaderActivity extends Activity {
                 if (down) web.requestFocus();
                 return true;
             }
-            return super.dispatchKeyEvent(ev);
+            return false;
         }
 
         if (!down) return true;
-        int h = Math.max(1, web.getHeight());
         switch (a) {
-            case Keys.UP:
-                if (web.getScrollY() <= 0) findViewById(R.id.btnHome).requestFocus();
-                else web.scrollBy(0, -h / 4);
-                break;
-            case Keys.DOWN: web.scrollBy(0, h / 4); break;
-            case Keys.PAGE_UP: web.pageUp(false); break;
-            case Keys.PAGE_DOWN: web.pageDown(false); break;
+            case Keys.UP: scrollPage(-1, false); break;
+            case Keys.DOWN: scrollPage(1, false); break;
+            case Keys.PAGE_UP: scrollPage(-1, true); break;
+            case Keys.PAGE_DOWN: scrollPage(1, true); break;
             case Keys.PREV_LINK: navLink(-1); break;
             case Keys.NEXT_LINK: navLink(1); break;
             case Keys.OK: openSelected(); break;
             default: break;
         }
         return true;
+    }
+
+    /**
+     * גלילה דרך הדף עצמו (JavaScript), ולא דרך ה-WebView: אחרי קפיצה לכותרת ה-WebView הישן עדיין "חושב" שהוא
+     * בראש הדף, ולכן גלילה נייטיבית זרקה לתחילת העמוד. בראש הדף "למעלה" מעביר לסרגל.
+     */
+    private void scrollPage(final int dir, final boolean page) {
+        String code = "(function(){var y=window.pageYOffset||document.documentElement.scrollTop"
+                + "||document.body.scrollTop||0;var h=window.innerHeight||600;var d=" + dir + "*h*"
+                + (page ? "0.9" : "0.25") + ";if(d<0&&y<=0)return -1;window.scrollBy(0,d);return y;})()";
+        js(code, new ValueCallback<String>() {
+            @Override
+            public void onReceiveValue(String v) {
+                if (v == null || "null".equals(v)) {
+                    // JavaScript לא רץ: גלילה נייטיבית
+                    int h = Math.max(1, web.getHeight());
+                    if (dir < 0 && web.getScrollY() <= 0) focusToolbar();
+                    else if (page && dir < 0) web.pageUp(false);
+                    else if (page) web.pageDown(false);
+                    else web.scrollBy(0, dir * h / 4);
+                } else if ("-1".equals(v) && !page) {
+                    focusToolbar();
+                }
+            }
+        });
+    }
+
+    private void focusToolbar() {
+        findViewById(R.id.btnHome).requestFocus();
     }
 
     private void navLink(final int dir) {
@@ -674,6 +853,24 @@ public class ReaderActivity extends Activity {
             Prefs.addHistory(ReaderActivity.this, bookPath, p, t);
             Prefs.setPosition(ReaderActivity.this, bookPath, p);
             updateBookmarkIcon();
+            final int restoreY = pendingScrollY;
+            pendingScrollY = 0;
+            syncCurrentTab(restoreY > 0 ? restoreY : 0);
+            if (restoreY > 0) {
+                final String scroll = "window.scrollTo(0," + restoreY + ")";
+                hintHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        js(scroll, null);
+                    }
+                }, 250);
+                hintHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        js(scroll, null);
+                    }
+                }, 900);
+            }
             js(NAV_JS.replace("%NIGHT%", ThemeUtil.isDark(ReaderActivity.this) ? "true" : "false"), null);
             if (pendingFind != null) {
                 String f = pendingFind.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ");

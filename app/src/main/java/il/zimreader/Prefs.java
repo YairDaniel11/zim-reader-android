@@ -22,6 +22,8 @@ public final class Prefs {
         public String path;
         public String title;
         public long ts;
+        /** מיקום גלילה (פיקסלי CSS) - לכרטיסיות. */
+        public int y;
     }
 
     private static SharedPreferences sp(Context c) {
@@ -43,6 +45,14 @@ public final class Prefs {
 
     public static void setZoom(Context c, int v) {
         sp(c).edit().putInt("zoom", v).apply();
+    }
+
+    public static synchronized List<Item> tabs(Context c) {
+        return load(c, "tabs");
+    }
+
+    public static synchronized void saveTabs(Context c, List<Item> t) {
+        save(c, "tabs", t);
     }
 
     /** בדיקות: מכריח מצב תאימות CSS ל-WebView ישן (משתני CSS) גם במכשיר חדש. */
@@ -70,6 +80,7 @@ public final class Prefs {
                 it.path = o.getString("p");
                 it.title = o.optString("t", it.path);
                 it.ts = o.optLong("ts");
+                it.y = o.optInt("y");
                 out.add(it);
             }
         } catch (Exception ignored) {
@@ -86,6 +97,7 @@ public final class Prefs {
                 o.put("p", it.path);
                 o.put("t", it.title);
                 o.put("ts", it.ts);
+                o.put("y", it.y);
                 a.put(o);
             }
         } catch (Exception ignored) {
