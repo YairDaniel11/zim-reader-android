@@ -358,17 +358,8 @@ public class ReaderActivity extends Activity {
                     public void onClick(DialogInterface d, int which) {
                         final String id = ids.get(which);
                         // קודם לפי מזהה, ואם אין - לפי מספר הכותרת בדף (כולל כותרות שדולגו בתצוגה)
-                        String code = "(function(){var e=" + (id.length() > 0 ? "document.getElementById(" + jsString(id) + ")" : "null")
-                                + ";if(!e){var h=document.querySelectorAll('h1,h2,h3,h4,h5,h6');e=h[" + positions.get(which)
-                                + "];}if(e){e.scrollIntoView(true);return 1;}return 0;})()";
-                        js(code, new ValueCallback<String>() {
-                            @Override
-                            public void onReceiveValue(String v) {
-                                if (!"1".equals(v) && id.length() > 0) {
-                                    web.loadUrl(pageUrl(curPath) + "#" + Uri.encode(id));
-                                }
-                            }
-                        });
+                        scrollToElement("(" + (id.length() > 0 ? "document.getElementById(" + jsString(id) + ")" : "null")
+                                + "||document.querySelectorAll('h1,h2,h3,h4,h5,h6')[" + positions.get(which) + "])");
                     }
                 })
                 .show();
@@ -451,17 +442,43 @@ public class ReaderActivity extends Activity {
         Prefs.saveTabs(this, tabs);
     }
 
+    /** מיקום הגלילה האמיתי של ה-WebView (פיקסלים אמיתיים). */
     private void withScrollY(final ValueCallback<Integer> cb) {
+        cb.onReceiveValue(web.getScrollY());
+    }
+
+    private float scale() {
+        float sc = web.getScale();
+        return sc > 0 ? sc : getResources().getDisplayMetrics().density;
+    }
+
+    /** גולל נייטיבית לאלמנט שנמצא ע"י הביטוי; המיקום מחושב מהפריסה ולא ממצב הגלילה של ה-JavaScript. */
+    private void scrollToElement(String expr) {
+        String code = "(function(){var e=" + expr + ";if(!e)return -1;var y=0,n=e;"
+                + "while(n){y+=n.offsetTop||0;n=n.offsetParent;}return y;})()";
+        js(code, new ValueCallback<String>() {
+            @Override
+            public void onReceiveValue(String v) {
+                try {
+                    double y = Double.parseDouble(v.replace("\"", ""));
+                    if (y >= 0) web.scrollTo(0, (int) (y * scale()));
+                } catch (Exception ignored) {
+                }
+            }
+        });
+    }
+
+    /** אחרי גלילה שבוצעה ע"י הדף עצמו (חיפוש, עוגן): מיישר את הגלילה הנייטיבית למצב האמיתי. */
+    private void syncNative() {
         js("(window.pageYOffset||document.documentElement.scrollTop||document.body.scrollTop||0)",
                 new ValueCallback<String>() {
                     @Override
                     public void onReceiveValue(String v) {
-                        int y = 0;
                         try {
-                            if (v != null && !"null".equals(v)) y = (int) Float.parseFloat(v);
-                        } catch (NumberFormatException ignored) {
+                            double y = Double.parseDouble(v.replace("\"", ""));
+                            if (y > 0) web.scrollTo(0, (int) (y * scale()));
+                        } catch (Exception ignored) {
                         }
-                        cb.onReceiveValue(y);
                     }
                 });
     }
@@ -737,28 +754,16 @@ public class ReaderActivity extends Activity {
     }
 
     /**
-     * גלילה דרך הדף עצמו (JavaScript), ולא דרך ה-WebView: אחרי קפיצה לכותרת ה-WebView הישן עדיין "חושב" שהוא
-     * בראש הדף, ולכן גלילה נייטיבית זרקה לתחילת העמוד. בראש הדף "למעלה" מעביר לסרגל.
+     * גלילה נייטיבית בלבד: ה-WebView הישן לא מסנכרן את מיקום ה-JavaScript עם הגלילה האמיתית, ולכן כל קפיצה
+     * (כותרות, קישורים) מבוצעת גם היא נייטיבית. בראש הדף "למעלה" מעביר לסרגל.
      */
     private void scrollPage(final int dir, final boolean page) {
-        String code = "(function(){var y=window.pageYOffset||document.documentElement.scrollTop"
-                + "||document.body.scrollTop||0;var h=window.innerHeight||600;var d=" + dir + "*h*"
-                + (page ? "0.9" : "0.25") + ";if(d<0&&y<=0)return -1;window.scrollBy(0,d);return y;})()";
-        js(code, new ValueCallback<String>() {
-            @Override
-            public void onReceiveValue(String v) {
-                if (v == null || "null".equals(v)) {
-                    // JavaScript לא רץ: גלילה נייטיבית
-                    int h = Math.max(1, web.getHeight());
-                    if (dir < 0 && web.getScrollY() <= 0) focusToolbar();
-                    else if (page && dir < 0) web.pageUp(false);
-                    else if (page) web.pageDown(false);
-                    else web.scrollBy(0, dir * h / 4);
-                } else if ("-1".equals(v) && !page) {
-                    focusToolbar();
-                }
-            }
-        });
+        int h = Math.max(1, web.getHeight());
+        if (dir < 0 && web.getScrollY() <= 0) {
+            if (!page) focusToolbar();
+            return;
+        }
+        web.scrollBy(0, dir * (int) (h * (page ? 0.9 : 0.25)));
     }
 
     private void focusToolbar() {
@@ -766,14 +771,28 @@ public class ReaderActivity extends Activity {
     }
 
     private void navLink(final int dir) {
-        js("window.zr?zr.nav(" + dir + "):-1", new ValueCallback<String>() {
-            @Override
-            public void onReceiveValue(String v) {
-                // אין קישורים (או שה-JavaScript לא רץ): החצים מזיזים את העמוד הצידה
-                if (!"0".equals(v) && !"-1".equals(v) && v != null && !"null".equals(v)) return;
-                web.scrollBy(dir > 0 ? -web.getWidth() / 3 : web.getWidth() / 3, 0);
-            }
-        });
+        final float sc = scale();
+        js("window.zr?zr.nav(" + dir + "," + (web.getScrollY() / sc) + "," + (web.getHeight() / sc) + "):'-1'",
+                new ValueCallback<String>() {
+                    @Override
+                    public void onReceiveValue(String v) {
+                        String[] p = v == null ? new String[0] : v.replace("\"", "").split(";");
+                        if (p.length < 3) {
+                            // אין קישורים (או שה-JavaScript לא רץ): החצים מזיזים את העמוד הצידה
+                            web.scrollBy(dir > 0 ? -web.getWidth() / 3 : web.getWidth() / 3, 0);
+                            return;
+                        }
+                        try {
+                            double top = Double.parseDouble(p[1]) * sc, bot = Double.parseDouble(p[2]) * sc;
+                            int sy = web.getScrollY(), h = web.getHeight();
+                            int pad = (int) (30 * getResources().getDisplayMetrics().density);
+                            if (top < sy + pad || bot > sy + h - pad) {
+                                web.scrollTo(web.getScrollX(), Math.max(0, (int) (top - h / 3)));
+                            }
+                        } catch (NumberFormatException ignored) {
+                        }
+                    }
+                });
     }
 
     private void openSelected() {
@@ -807,15 +826,17 @@ public class ReaderActivity extends Activity {
             + "function collect(){L=[];var as=document.getElementsByTagName('a');"
             + "for(var k=0;k<as.length;k++){var h=as[k].getAttribute('href');"
             + "if(h&&h.charAt(0)!=='#'&&as[k].offsetWidth>0&&as[k].offsetHeight>0)L.push(as[k]);}}"
+            + "function top(el){var y=0,q=el;while(q){y+=q.offsetTop||0;q=q.offsetParent;}return y;}"
             + "function pick(n){if(o){o.style.outline='';o.style.backgroundColor=o.__zbg||'';}"
             + "o=L[n];o.__zbg=o.style.backgroundColor;o.style.outline='3px solid #304E9A';"
-            + "o.style.backgroundColor='rgba(138,164,230,.35)';var r=o.getBoundingClientRect();"
-            + "if(r.top<40||r.bottom>window.innerHeight-40)window.scrollTo(0,window.pageYOffset+r.top-window.innerHeight/3);}"
-            + "window.zr={nav:function(d){collect();if(!L.length)return 0;var n=o?L.indexOf(o):-1;"
+            + "o.style.backgroundColor='rgba(138,164,230,.35)';var t=top(o);return t+';'+(t+o.offsetHeight);}"
+            + "window.zr={nav:function(d,vt,vh){collect();if(!L.length)return '0';var n=o?L.indexOf(o):-1;"
+            + "if(n>=0){var t0=top(o);if(t0<vt-5||t0>vt+vh)n=-1;}"
             + "if(n>=0){n=Math.max(0,Math.min(L.length-1,n+d));}else{"
-            + "for(var k=0;k<L.length;k++){var r=L[k].getBoundingClientRect();"
-            + "if(r.top>=0&&r.top<window.innerHeight){n=k;break;}}"
-            + "if(n<0)n=d>0?0:L.length-1;}pick(n);return L.length;},"
+            + "var f=-1,l=-1;for(var k=0;k<L.length;k++){var t=top(L[k]);if(t>=vt&&t<vt+vh){if(f<0)f=k;l=k;}}"
+            + "if(f>=0){n=d>0?f:l;}else{n=-1;for(var k=0;k<L.length;k++){if(top(L[k])>=vt){n=k;break;}}"
+            + "if(n<0)n=L.length-1;if(d<0&&n>0)n=n-1;}}"
+            + "return L.length+';'+pick(n);},"
             + "open:function(){if(o){location.href=o.href;return 1;}return 0;}};}"
             + "var s=document.getElementById('zr-night');"
             + "if(%NIGHT%){if(!s){s=document.createElement('style');s.id='zr-night';"
@@ -878,7 +899,16 @@ public class ReaderActivity extends Activity {
 
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, String url) {
-            if (url.startsWith(BASE)) return false;
+            if (url.startsWith(BASE)) {
+                int hash = url.indexOf('#');
+                if (hash > 0 && curPath != null && curPath.equals(pathFromUrl(url.substring(0, hash)))) {
+                    String id = Uri.decode(url.substring(hash + 1));
+                    scrollToElement("(document.getElementById(" + jsString(id) + ")||document.getElementsByName("
+                            + jsString(id) + ")[0])");
+                    return true;
+                }
+                return false;
+            }
             try {
                 startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
             } catch (ActivityNotFoundException ignored) {
@@ -915,26 +945,34 @@ public class ReaderActivity extends Activity {
             tabSwitching = false;
             lastY = restoreY;
             syncCurrentTab(restoreY > 0 ? restoreY : 0);
+            Runnable restore = new Runnable() {
+                @Override
+                public void run() {
+                    web.scrollTo(0, restoreY);
+                }
+            };
             if (restoreY > 0) {
-                final String scroll = "window.scrollTo(0," + restoreY + ")";
+                hintHandler.postDelayed(restore, 250);
+                hintHandler.postDelayed(restore, 900);
+            } else if (url.indexOf('#') > 0) {
                 hintHandler.postDelayed(new Runnable() {
                     @Override
                     public void run() {
-                        js(scroll, null);
+                        syncNative();
                     }
-                }, 250);
-                hintHandler.postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        js(scroll, null);
-                    }
-                }, 900);
+                }, 400);
             }
             js(NAV_JS.replace("%NIGHT%", ThemeUtil.isDark(ReaderActivity.this) ? "true" : "false"), null);
             if (pendingFind != null) {
                 String f = pendingFind.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ");
                 pendingFind = null;
                 js("try{window.find('" + f + "',false,false,true)}catch(e){}", null);
+                hintHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        syncNative();
+                    }
+                }, 400);
             }
         }
     }
