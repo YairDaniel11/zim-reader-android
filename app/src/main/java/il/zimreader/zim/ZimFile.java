@@ -41,7 +41,7 @@ public final class ZimFile implements Closeable {
     }
 
     private final java.io.Closeable closer;
-    private final FileChannel ch;
+    private final Source ch;
     private final long size;
     private final File file;
 
@@ -60,20 +60,45 @@ public final class ZimFile implements Closeable {
     private final LinkedHashMap<Integer, byte[]> cache = new LinkedHashMap<Integer, byte[]>(16, 0.75f, true);
     private long cacheBytes;
 
+    /** מקור נתונים עם קריאה במיקום מסוים (קובץ בודד או קובץ מפוצל). */
+    private interface Source {
+        int read(ByteBuffer dst, long pos) throws IOException;
+    }
+
+    private static Source of(final FileChannel c) {
+        return new Source() {
+            @Override
+            public int read(ByteBuffer dst, long pos) throws IOException {
+                return c.read(dst, pos);
+            }
+        };
+    }
+
     public ZimFile(File f) throws IOException {
         this(new RandomAccessFile(f, "r"), f);
     }
 
+    /** קובץ ZIM מפוצל (.zimaa, .zimab, ...) - נפתח כקובץ אחד. */
+    public static ZimFile openSplit(File first) throws IOException {
+        final SplitSource sp = new SplitSource(SplitSource.findParts(first));
+        return new ZimFile(new Source() {
+            @Override
+            public int read(ByteBuffer dst, long pos) throws IOException {
+                return sp.read(dst, pos);
+            }
+        }, sp.length(), sp, first);
+    }
+
     private ZimFile(RandomAccessFile raf, File f) throws IOException {
-        this(raf.getChannel(), raf.length(), raf, f);
+        this(of(raf.getChannel()), raf.length(), raf, f);
     }
 
     /** פתיחה דרך ערוץ קיים (למשל מ-content:// URI), בלי נתיב קובץ. */
     public ZimFile(FileChannel channel, long length, java.io.Closeable closer) throws IOException {
-        this(channel, length, closer, null);
+        this(of(channel), length, closer, null);
     }
 
-    private ZimFile(FileChannel channel, long length, java.io.Closeable closer, File f) throws IOException {
+    private ZimFile(Source channel, long length, java.io.Closeable closer, File f) throws IOException {
         file = f;
         this.closer = closer;
         ch = channel;

@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import il.zimreader.zim.SplitSource;
 import il.zimreader.zim.ZimFile;
 
 /** רשימת הספרים (קבצי ZIM) שנמצאו באחסון, וקבצים פתוחים. */
@@ -93,10 +94,23 @@ public final class Library {
         return z;
     }
 
+    private static ZimFile openFile(String path) throws IOException {
+        File f = new File(path);
+        return SplitSource.isFirstPart(f.getName()) ? ZimFile.openSplit(f) : new ZimFile(f);
+    }
+
+    /** גודל הספר; בקובץ מפוצל - סכום כל החלקים. */
+    private static long sizeOf(File f) {
+        if (!SplitSource.isFirstPart(f.getName())) return f.length();
+        long sum = 0;
+        for (File p : SplitSource.findParts(f)) sum += p.length();
+        return sum;
+    }
+
     public static synchronized ZimFile open(String path) throws IOException {
         ZimFile z = open.get(path);
         if (z == null) {
-            z = path.startsWith("content://") ? openContent(path) : new ZimFile(new File(path));
+            z = path.startsWith("content://") ? openContent(path) : openFile(path);
             // משאירים עד 3 קבצים פתוחים
             if (open.size() >= 3) {
                 String victim = open.keySet().iterator().next();
@@ -129,7 +143,7 @@ public final class Library {
         for (File f : found) {
             Book b = new Book();
             b.path = f.getAbsolutePath();
-            b.size = f.length();
+            b.size = sizeOf(f);
             b.name = titleOf(f);
             result.add(b);
         }
@@ -162,7 +176,7 @@ public final class Library {
             if (k.isDirectory()) {
                 if (n.startsWith(".") || n.equals("Android") || n.equals("proc") || n.equals("sys")) continue;
                 walk(k, depth + 1, seenDirs, seenFiles, out);
-            } else if (n.toLowerCase().endsWith(".zim") && k.length() > 1000) {
+            } else if ((n.toLowerCase().endsWith(".zim") || SplitSource.isFirstPart(n)) && k.length() > 1000) {
                 try {
                     if (seenFiles.add(k.getCanonicalPath()) && hasZimMagic(k)) out.add(k);
                 } catch (IOException ignored) {
@@ -191,7 +205,7 @@ public final class Library {
     private static String titleOf(File f) {
         ZimFile z = null;
         try {
-            z = new ZimFile(f);
+            z = SplitSource.isFirstPart(f.getName()) ? ZimFile.openSplit(f) : new ZimFile(f);
             String t = z.metadata("Title");
             if (t != null && t.trim().length() > 0) return t.trim();
         } catch (Throwable ignored) {
