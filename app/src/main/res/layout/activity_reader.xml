@@ -1,13 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/zrBg"
-    android:orientation="vertical">
+    android:background="?attr/zrBg">
+
+    <il.zimreader.ZimWebView
+        android:id="@+id/web"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:focusable="true"
+        android:nextFocusUp="@+id/btnHome" />
 
     <LinearLayout
+        android:id="@+id/bar"
         android:layout_width="match_parent"
         android:layout_height="56dp"
+        android:layout_gravity="top"
         android:background="?attr/zrHeader"
         android:elevation="4dp"
         android:gravity="center_vertical"
@@ -27,12 +35,22 @@
             android:textStyle="bold" />
 
         <ImageButton
+            android:id="@+id/btnTabs"
+            style="@style/BarButton"
+            android:contentDescription="כרטיסיות"
+            android:src="@drawable/ic_tabs"
+            android:nextFocusLeft="@+id/btnHome"
+            android:nextFocusRight="@+id/btnTabs"
+            android:nextFocusUp="@id/btnTabs"
+            android:nextFocusDown="@+id/web" />
+
+        <ImageButton
             android:id="@+id/btnHome"
             style="@style/BarButton"
             android:contentDescription="דף ראשי"
             android:src="@drawable/ic_home"
             android:nextFocusLeft="@+id/btnSearch"
-            android:nextFocusRight="@+id/btnHome"
+            android:nextFocusRight="@+id/btnTabs"
             android:nextFocusUp="@id/btnHome"
             android:nextFocusDown="@+id/web" />
 
@@ -77,23 +95,15 @@
             android:nextFocusDown="@+id/web" />
     </LinearLayout>
 
-    <il.zimreader.ZimWebView
-        android:id="@+id/web"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:focusable="true"
-        android:nextFocusUp="@id/btnHome" />
-
     <TextView
         android:id="@+id/hint"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="24dp"
+        android:layout_gravity="bottom"
         android:background="?attr/zrHeader"
         android:ellipsize="end"
         android:gravity="center"
-        android:padding="4dp"
         android:singleLine="true"
         android:textColor="#FFBDBDBD"
         android:textSize="11sp" />
-</LinearLayout>
+</FrameLayout>

@@ -11,6 +11,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
+import android.widget.FrameLayout;
 import android.webkit.ValueCallback;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -40,9 +41,12 @@ public class ReaderActivity extends Activity {
     public static final String EX_FIND = "find";
 
     private static final String BASE = "https://zim.local/";
-    private static final int[] ZOOMS = {60, 80, 100, 120, 150, 180, 220};
+    private static final int BAR_DP = 56;
+    private static final int HINT_DP = 24;
 
     private ZimWebView web;
+    private View bar;
+    private TextView hintView;
     private TextView titleView;
     private ImageButton btnBookmark;
     private ZimFile zim;
@@ -52,6 +56,13 @@ public class ReaderActivity extends Activity {
     private String pendingFind;
     private boolean clearHist;
     private boolean legacyCss;
+    private boolean barsShown = true;
+    private boolean hideBarsOn;
+    private boolean appliedDark;
+    private boolean appliedHide;
+    private boolean appliedKeys;
+    private boolean appliedLegacy;
+    private int appliedMargin;
     private il.zimreader.zim.CssCompat cssCompat = new il.zimreader.zim.CssCompat();
 
     @Override
@@ -62,10 +73,13 @@ public class ReaderActivity extends Activity {
         ThemeUtil.forceRtl(this);
 
         Library.init(this);
+        appliedDark = ThemeUtil.isDark(this);
+        bar = findViewById(R.id.bar);
+        hintView = (TextView) findViewById(R.id.hint);
         titleView = (TextView) findViewById(R.id.title);
         btnBookmark = (ImageButton) findViewById(R.id.btnBookmark);
         web = (ZimWebView) findViewById(R.id.web);
-        ((TextView) findViewById(R.id.hint)).setText(R.string.hint_reader);
+        hintView.setText(R.string.hint_reader);
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -82,9 +96,26 @@ public class ReaderActivity extends Activity {
                 return handleKey(e);
             }
         });
-        legacyCss = Prefs.forceLegacyCss(this)
-                || il.zimreader.zim.CssCompat.isLegacyWebView(s.getUserAgentString(), Build.VERSION.SDK_INT);
+        web.setScrollListener(new ZimWebView.ScrollListener() {
+            @Override
+            public void onScroll(int y, int oldY) {
+                onWebScroll(y, oldY);
+            }
+        });
+        web.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                return onWebLongClick();
+            }
+        });
+        legacyCss = computeLegacy();
+        appliedLegacy = legacyCss;
+        appliedMargin = Prefs.margin(this);
+        appliedHide = Prefs.hideBars(this);
+        appliedKeys = Prefs.showKeyUi(this);
+        applyBars();
 
+        click(R.id.btnTabs, new Runnable() { public void run() { showTabs(); } });
         click(R.id.btnHome, new Runnable() { public void run() { goHome(); } });
         click(R.id.btnSearch, new Runnable() { public void run() { openSearch(); } });
         click(R.id.btnBookmark, new Runnable() { public void run() { toggleBookmark(); } });
@@ -111,9 +142,47 @@ public class ReaderActivity extends Activity {
 
     private final android.os.Handler hintHandler = new android.os.Handler();
 
+    private boolean computeLegacy() {
+        return Prefs.forceLegacyCss(this) || il.zimreader.zim.CssCompat.isLegacyWebView(
+                web.getSettings().getUserAgentString(), Build.VERSION.SDK_INT);
+    }
+
+    /**
+     * סידור הסרגלים לפי ההגדרות. כברירת מחדל הדף מתחיל מתחת לסרגל העליון ומעל שורת הרמזים. כשהסרגלים
+     * נעלמים בגלילה הדף תופס את כל המסך (ושוליים פנימיים בדף משאירים מקום לסרגלים בראשו) כדי שהוא
+     * לא יקפוץ בכל הסתרה.
+     */
+    private void applyBars() {
+        float d = getResources().getDisplayMetrics().density;
+        boolean keys = Prefs.showKeyUi(this);
+        hideBarsOn = Prefs.hideBars(this);
+        hintView.setVisibility(keys ? View.VISIBLE : View.GONE);
+        findViewById(R.id.btnTabs).setVisibility(keys ? View.GONE : View.VISIBLE);
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) web.getLayoutParams();
+        lp.topMargin = hideBarsOn ? 0 : (int) (BAR_DP * d);
+        lp.bottomMargin = (hideBarsOn || !keys) ? 0 : (int) (HINT_DP * d);
+        web.setLayoutParams(lp);
+        bar.setTranslationY(0);
+        hintView.setTranslationY(0);
+        barsShown = true;
+    }
+
+    private void showBars(boolean show) {
+        if (show == barsShown) return;
+        barsShown = show;
+        bar.animate().translationY(show ? 0 : -bar.getHeight()).setDuration(150).start();
+        hintView.animate().translationY(show ? 0 : hintView.getHeight()).setDuration(150).start();
+    }
+
+    private void onWebScroll(int y, int oldY) {
+        if (!hideBarsOn) return;
+        if (y <= 0 || oldY - y > 8) showBars(true);
+        else if (y - oldY > 8) showBars(false);
+    }
+
     /** חיווי רגעי בשורת התחתית: איזה מקש נלחץ ואיזו פעולה הופעלה (עוזר לאבחן מכשירים). */
     private void showKeyHint(KeyEvent ev, int action) {
-        final TextView hint = (TextView) findViewById(R.id.hint);
+        final TextView hint = hintView;
         hint.setText(Keys.name(action));
         hintHandler.removeCallbacksAndMessages(null);
         hintHandler.postDelayed(new Runnable() {
@@ -301,15 +370,24 @@ public class ReaderActivity extends Activity {
         }
         final List<String> urls = new ArrayList<String>(found.keySet());
         String[] labels = found.values().toArray(new String[0]);
-        new AlertDialog.Builder(this)
-                .setTitle("קישורים בדף (" + labels.length + ")")
+        final String[] names = labels;
+        AlertDialog dlg = new AlertDialog.Builder(this)
+                .setTitle("קישורים (" + labels.length + ") · לחיצה ארוכה: כרטיסייה חדשה")
                 .setItems(labels, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int which) {
                         web.loadUrl(urls.get(which));
                     }
                 })
-                .show();
+                .create();
+        dlg.show();
+        dlg.getListView().setOnItemLongClickListener(new android.widget.AdapterView.OnItemLongClickListener() {
+            @Override
+            public boolean onItemLongClick(android.widget.AdapterView<?> p, View v, int pos, long id) {
+                openInBackgroundTab(urls.get(pos), names[pos]);
+                return true;
+            }
+        });
     }
 
     private static String jsString(String x) {
@@ -497,24 +575,95 @@ public class ReaderActivity extends Activity {
         final List<Prefs.Item> tabs = Prefs.tabs(this);
         final int n = tabs.size();
         List<String> labels = new ArrayList<String>();
+        labels.add("＋ כרטיסייה חדשה (חיפוש)");
         for (int i = 0; i < n; i++) {
             Prefs.Item t = tabs.get(i);
             labels.add((i == 0 ? "● " : (i + 1) + ". ") + t.title.replace('_', ' ') + "  ·  " + Library.nameOf(t.book));
         }
-        if (n > 1) labels.add("✕ סגור את הכרטיסייה הנוכחית");
-        new AlertDialog.Builder(this)
-                .setTitle("כרטיסיות (" + n + "/10)")
+        AlertDialog dlg = new AlertDialog.Builder(this)
+                .setTitle("כרטיסיות (" + n + "/10) · לחיצה ארוכה: סגירה")
                 .setItems(labels.toArray(new String[0]), new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int which) {
-                        if (which < n) {
-                            if (which > 0) switchToTab(which);
-                        } else {
-                            closeCurrentTab();
-                        }
+                        if (which == 0) openSearch();
+                        else if (which > 1) switchToTab(which - 1);
+                    }
+                })
+                .create();
+        dlg.show();
+        dlg.getListView().setOnItemLongClickListener(new android.widget.AdapterView.OnItemLongClickListener() {
+            @Override
+            public boolean onItemLongClick(android.widget.AdapterView<?> p, View v, int pos, long id) {
+                if (pos == 0 || n <= 1) return true;
+                closeTab(pos - 1);
+                return true;
+            }
+        });
+    }
+
+    /** פותח קישור בכרטיסייה חדשה ברקע: נכנסת מיד אחרי הנוכחית, בלי לעבור אליה. */
+    private void openInBackgroundTab(String url, String label) {
+        int hash = url.indexOf('#');
+        String p = pathFromUrl(hash > 0 ? url.substring(0, hash) : url);
+        if (p == null || bookPath == null) return;
+        List<Prefs.Item> tabs = Prefs.tabs(this);
+        if (!tabs.isEmpty() && tabs.get(0).book.equals(bookPath) && tabs.get(0).path.equals(p)) {
+            Toast.makeText(this, "הדף כבר פתוח", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        for (int i = 0; i < tabs.size(); i++) {
+            if (tabs.get(i).book.equals(bookPath) && tabs.get(i).path.equals(p)) {
+                tabs.remove(i);
+                break;
+            }
+        }
+        Prefs.Item it = new Prefs.Item();
+        it.book = bookPath;
+        it.path = p;
+        it.title = (label == null || label.length() == 0) ? p.substring(p.lastIndexOf('/') + 1) : label;
+        it.ts = System.currentTimeMillis();
+        tabs.add(Math.min(1, tabs.size()), it);
+        while (tabs.size() > 10) tabs.remove(tabs.size() - 1);
+        Prefs.saveTabs(this, tabs);
+        Toast.makeText(this, "נפתח בכרטיסייה חדשה", Toast.LENGTH_SHORT).show();
+    }
+
+    /** לחיצה ארוכה על קישור בדף (מגע). */
+    private boolean onWebLongClick() {
+        WebView.HitTestResult r = web.getHitTestResult();
+        if (r == null) return false;
+        int t = r.getType();
+        if (t != WebView.HitTestResult.SRC_ANCHOR_TYPE && t != WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) return false;
+        final String url = r.getExtra();
+        if (url == null || !url.startsWith(BASE)) return false;
+        int hash = url.indexOf('#');
+        String p = pathFromUrl(hash > 0 ? url.substring(0, hash) : url);
+        if (p == null || p.equals(curPath)) return false;
+        new AlertDialog.Builder(this)
+                .setItems(new String[]{"פתח", "פתח בכרטיסייה חדשה"}, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which) {
+                        if (which == 0) web.loadUrl(url);
+                        else openInBackgroundTab(url, null);
                     }
                 })
                 .show();
+        return true;
+    }
+
+    /** סוגר כרטיסייה לפי מיקום; סגירת הנוכחית עוברת לבאה. */
+    private void closeTab(int index) {
+        List<Prefs.Item> tabs = Prefs.tabs(this);
+        if (tabs.size() <= 1 || index < 0 || index >= tabs.size()) return;
+        tabs.remove(index);
+        Prefs.saveTabs(this, tabs);
+        if (index == 0) {
+            tabBook = tabs.get(0).book;
+            tabPath = tabs.get(0).path;
+            openTab(tabs.get(0));
+        } else {
+            showTabsDialog();
+        }
     }
 
     private void switchToTab(int index) {
@@ -528,16 +677,6 @@ public class ReaderActivity extends Activity {
         openTab(it);
     }
 
-    private void closeCurrentTab() {
-        List<Prefs.Item> tabs = Prefs.tabs(this);
-        if (tabs.size() <= 1) return;
-        tabs.remove(0);
-        Prefs.saveTabs(this, tabs);
-        tabBook = tabs.get(0).book;
-        tabPath = tabs.get(0).path;
-        openTab(tabs.get(0));
-    }
-
     private void openTab(Prefs.Item it) {
         tabSwitching = true;
         pendingScrollY = it.y;
@@ -547,6 +686,24 @@ public class ReaderActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (ThemeUtil.isDark(this) != appliedDark) {
+            recreate();
+            return;
+        }
+        // הגדרות ששונו במסך ההגדרות
+        web.getSettings().setTextZoom(Prefs.zoom(this));
+        legacyCss = computeLegacy();
+        boolean reload = Prefs.margin(this) != appliedMargin || Prefs.hideBars(this) != appliedHide
+                || Prefs.showKeyUi(this) != appliedKeys || legacyCss != appliedLegacy;
+        appliedMargin = Prefs.margin(this);
+        appliedHide = Prefs.hideBars(this);
+        appliedKeys = Prefs.showKeyUi(this);
+        appliedLegacy = legacyCss;
+        applyBars();
+        if (reload && curPath != null) {
+            pendingScrollY = web.getScrollY();
+            web.reload();
+        }
         pollHandler.removeCallbacks(scrollPoller);
         pollHandler.postDelayed(scrollPoller, 1000);
     }
@@ -567,13 +724,17 @@ public class ReaderActivity extends Activity {
     // ---------- תפריט ----------
 
     private void showMenu() {
-        final boolean dark = ThemeUtil.isDark(this);
-        final String[] items = {
-                "כרטיסיות", "קישורים בדף", "כותרות בדף", "רשימת סימניות", "היסטוריה",
-                "שוליים: " + marginName(Prefs.margin(this)), "הגדל גופן", "הקטן גופן",
-                dark ? "מצב יום" : "מצב לילה", "עזרה: מקשים"};
+        final boolean keys = Prefs.showKeyUi(this);
+        List<String> items = new ArrayList<String>();
+        items.add("כרטיסיות");
+        items.add("קישורים בדף");
+        items.add("כותרות בדף");
+        items.add("רשימת סימניות");
+        items.add("היסטוריה");
+        items.add("הגדרות");
+        if (keys) items.add("עזרה: מקשים");
         new AlertDialog.Builder(this)
-                .setItems(items, new DialogInterface.OnClickListener() {
+                .setItems(items.toArray(new String[0]), new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int which) {
                         switch (which) {
@@ -582,34 +743,9 @@ public class ReaderActivity extends Activity {
                             case 2: showToc(); break;
                             case 3: openList(Prefs.BOOKMARKS); break;
                             case 4: openList(Prefs.HISTORY); break;
-                            case 5: showMarginChoice(); break;
-                            case 6: changeZoom(1); break;
-                            case 7: changeZoom(-1); break;
-                            case 8:
-                                ThemeUtil.toggle(ReaderActivity.this);
-                                recreate();
-                                break;
-                            default: showHelp();
+                            case 5: startActivity(new Intent(ReaderActivity.this, SettingsActivity.class)); break;
+                            default: Keys.showHelp(ReaderActivity.this);
                         }
-                    }
-                })
-                .show();
-    }
-
-    private static String marginName(int m) {
-        return m == 0 ? "מלא" : (m == 2 ? "רחבים" : "צרים");
-    }
-
-    private void showMarginChoice() {
-        String[] names = {"רוחב מלא (קריאה בשוליים מינימליים)", "שוליים צרים (ברירת מחדל)", "שוליים רחבים"};
-        new AlertDialog.Builder(this)
-                .setTitle("שולי עמוד")
-                .setSingleChoiceItems(names, Prefs.margin(this), new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface d, int which) {
-                        Prefs.setMargin(ReaderActivity.this, which);
-                        d.dismiss();
-                        web.reload();
                     }
                 })
                 .show();
@@ -622,6 +758,8 @@ public class ReaderActivity extends Activity {
      */
     private String layoutHead(String html) {
         int m = Prefs.margin(this);
+        String top = hideBarsOn ? BAR_DP + "px" : "0";
+        String bottom = hideBarsOn && Prefs.showKeyUi(this) ? HINT_DP + "px" : "0";
         String side = m == 0 ? "1.5%" : (m == 2 ? "16.6%" : "8.3%");
         String low = html.toLowerCase();
         StringBuilder sb = new StringBuilder();
@@ -631,6 +769,7 @@ public class ReaderActivity extends Activity {
         sb.append("<style id=\"zr-layout\">")
                 .append("html,body{margin:0!important;width:auto!important;max-width:none!important;min-width:0!important}")
                 .append("body{padding-left:").append(side).append("!important;padding-right:").append(side)
+                .append("!important;padding-top:").append(top).append("!important;padding-bottom:").append(bottom)
                 .append("!important;box-sizing:border-box!important}")
                 .append("#content,.mw-body,.mw-body-content,#bodyContent,#mw-content-text,.vector-body,main,article{")
                 .append("margin-left:0!important;margin-right:0!important;max-width:none!important;")
@@ -650,36 +789,6 @@ public class ReaderActivity extends Activity {
 
     private void openList(String mode) {
         startActivity(new Intent(this, ListScreenActivity.class).putExtra(ListScreenActivity.EX_MODE, mode));
-    }
-
-    private void changeZoom(int dir) {
-        int cur = Prefs.zoom(this);
-        int idx = 2;
-        for (int i = 0; i < ZOOMS.length; i++) if (ZOOMS[i] <= cur) idx = i;
-        idx = Math.max(0, Math.min(ZOOMS.length - 1, idx + dir));
-        Prefs.setZoom(this, ZOOMS[idx]);
-        web.getSettings().setTextZoom(ZOOMS[idx]);
-    }
-
-    private void showHelp() {
-        new AlertDialog.Builder(this)
-                .setTitle("מקשים")
-                .setMessage("חצים למעלה/למטה: גלילה (למעלה בראש הדף: מעבר לסרגל)\n"
-                        + "חצים ימינה/שמאלה, או 4/6: קישור קודם / הבא\n"
-                        + "אישור או 5: פתיחת הקישור המסומן (בלי סימון: רשימת קישורים)\n"
-                        + "2 / 8: עמוד למעלה / למטה\n"
-                        + "1: דף ראשי\n"
-                        + "3: רשימת קישורים בדף\n"
-                        + "7: כותרות בדף\n"
-                        + "9 או 0: החלפת ספר / חזרה לספרייה\n"
-                        + "* : חיפוש\n"
-                        + "# או MENU או מקש רך שמאלי: תפריט\n"
-                        + "חזרה או מקש רך ימני או C: אחורה / יציאה\n\n"
-                        + "חצים ימינה/שמאלה בדף בלי קישורים: הזזת העמוד הצידה.\n"
-                        + "תפריט > כרטיסיות: העמודים האחרונים (עד 10), כל אחד עם מיקום הגלילה המדויק שלו. "
-                        + "מעבר לעמוד אחר שומר אוטומטית את הקודם.")
-                .setPositiveButton(R.string.ok, null)
-                .show();
     }
 
     // ---------- מקשים ----------

@@ -39,6 +39,9 @@ public final class Prefs {
         sp(c).edit().putInt("theme", v).apply();
     }
 
+    /** שלבי גודל הגופן (באחוזים). */
+    public static final int[] ZOOMS = {60, 80, 100, 120, 150, 180, 220};
+
     public static int zoom(Context c) {
         return sp(c).getInt("zoom", 100);
     }
@@ -67,6 +70,49 @@ public final class Prefs {
 
     public static void setMargin(Context c, int v) {
         sp(c).edit().putInt("margin", v).apply();
+    }
+
+    /** הסתרת הסרגלים בגלילה למטה (ובחזרה בגלילה למעלה). */
+    public static boolean hideBars(Context c) {
+        return sp(c).getBoolean("hideBars", false);
+    }
+
+    public static void setHideBars(Context c, boolean v) {
+        sp(c).edit().putBoolean("hideBars", v).apply();
+    }
+
+    /** פתיחה בהפעלה במקום האחרון שנקרא (ולא ברשימת הספרים). */
+    public static boolean resumeLast(Context c) {
+        return sp(c).getBoolean("resumeLast", true);
+    }
+
+    public static void setResumeLast(Context c, boolean v) {
+        sp(c).edit().putBoolean("resumeLast", v).apply();
+    }
+
+    /** רמזי מקשים: 0 = אוטומטי (רק במכשיר עם מקשים), 1 = תמיד, 2 = אף פעם. */
+    public static int keyHints(Context c) {
+        return sp(c).getInt("keyHints", 0);
+    }
+
+    public static void setKeyHints(Context c, int v) {
+        sp(c).edit().putInt("keyHints", v).apply();
+    }
+
+    public static void setForceLegacyCss(Context c, boolean v) {
+        sp(c).edit().putBoolean("legacyCss", v).apply();
+    }
+
+    /** האם להציג רכיבי ממשק שקשורים למקשים (שורת רמזים, עזרת מקשים). */
+    public static boolean showKeyUi(Context c) {
+        int m = keyHints(c);
+        if (m == 1) return true;
+        if (m == 2) return false;
+        android.content.res.Configuration cfg = c.getResources().getConfiguration();
+        return cfg.keyboard != android.content.res.Configuration.KEYBOARD_NOKEYS
+                || cfg.navigation == android.content.res.Configuration.NAVIGATION_DPAD
+                || cfg.navigation == android.content.res.Configuration.NAVIGATION_TRACKBALL
+                || cfg.navigation == android.content.res.Configuration.NAVIGATION_WHEEL;
     }
 
     public static synchronized List<Item> load(Context c, String key) {

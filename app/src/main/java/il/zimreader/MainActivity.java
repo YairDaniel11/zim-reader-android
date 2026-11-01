@@ -21,6 +21,7 @@ public class MainActivity extends Activity {
     private TextView empty;
     private TextView header;
     private boolean asked;
+    private boolean appliedDark;
     private boolean scanning;
     private List<Library.Book> shown = new ArrayList<Library.Book>();
 
@@ -31,6 +32,7 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
         ThemeUtil.forceRtl(this);
         Library.init(this);
+        appliedDark = ThemeUtil.isDark(this);
 
         header = (TextView) findViewById(R.id.header);
         list = (ListView) findViewById(R.id.list);
@@ -79,7 +81,24 @@ public class MainActivity extends Activity {
             }
         });
         render();
-        openExternal(getIntent());
+        if (isExternalView(getIntent())) openExternal(getIntent());
+        else if (savedInstanceState == null && Prefs.resumeLast(this)) resumeLast();
+    }
+
+    private static boolean isExternalView(Intent intent) {
+        return intent != null && Intent.ACTION_VIEW.equals(intent.getAction()) && intent.getData() != null;
+    }
+
+    /** הפעלה קרה: ממשיכים מהעמוד האחרון שנקרא (הכרטיסייה הנוכחית), ולא מרשימת הספרים. */
+    private void resumeLast() {
+        List<Prefs.Item> tabs = Prefs.tabs(this);
+        String book = tabs.isEmpty() ? Prefs.lastBook(this) : tabs.get(0).book;
+        String path = tabs.isEmpty() ? null : tabs.get(0).path;
+        if (book == null) return;
+        if (book.startsWith("/") && !new java.io.File(book).exists()) return;
+        Intent i = new Intent(this, ReaderActivity.class).putExtra(ReaderActivity.EX_BOOK, book);
+        if (path != null) i.putExtra(ReaderActivity.EX_PATH, path);
+        startActivity(i);
     }
 
     @Override
@@ -122,6 +141,11 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (ThemeUtil.isDark(this) != appliedDark) {
+            recreate();
+            return;
+        }
+        ThemeUtil.applyHintBar(this);
         if (PermissionUtil.hasStorage(this)) {
             // סריקה אוטומטית רק כשאין רשימה שמורה בכלל
             if (Library.list().isEmpty()) startScan();
@@ -198,8 +222,7 @@ public class MainActivity extends Activity {
     }
 
     private void showMenu() {
-        final boolean dark = ThemeUtil.isDark(this);
-        String[] items = {"סרוק מחדש", "סימניות", "היסטוריה", dark ? "מצב יום" : "מצב לילה"};
+        String[] items = {"סרוק מחדש", "סימניות", "היסטוריה", "הגדרות"};
         new AlertDialog.Builder(this)
                 .setItems(items, new DialogInterface.OnClickListener() {
                     @Override
@@ -209,8 +232,7 @@ public class MainActivity extends Activity {
                             case 1: openList(Prefs.BOOKMARKS); break;
                             case 2: openList(Prefs.HISTORY); break;
                             default:
-                                ThemeUtil.toggle(MainActivity.this);
-                                recreate();
+                                startActivity(new Intent(MainActivity.this, SettingsActivity.class));
                         }
                     }
                 })

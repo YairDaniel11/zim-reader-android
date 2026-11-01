@@ -16,7 +16,12 @@ public class ZimWebView extends WebView {
         boolean handle(KeyEvent e);
     }
 
+    public interface ScrollListener {
+        void onScroll(int y, int oldY);
+    }
+
     private PreImeHandler handler;
+    private ScrollListener scrollListener;
 
     public ZimWebView(Context c, AttributeSet a) {
         super(c, a);
@@ -24,6 +29,16 @@ public class ZimWebView extends WebView {
 
     public void setPreImeHandler(PreImeHandler h) {
         handler = h;
+    }
+
+    public void setScrollListener(ScrollListener l) {
+        scrollListener = l;
+    }
+
+    @Override
+    protected void onScrollChanged(int l, int t, int oldl, int oldt) {
+        super.onScrollChanged(l, t, oldl, oldt);
+        if (scrollListener != null) scrollListener.onScroll(t, oldt);
     }
 
     @Override

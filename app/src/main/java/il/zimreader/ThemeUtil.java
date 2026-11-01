@@ -30,4 +30,10 @@ public final class ThemeUtil {
     public static void forceRtl(Activity a) {
         a.getWindow().getDecorView().setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
     }
+
+    /** שורת הרמזים שבתחתית המסך: מוצגת רק במכשיר עם מקשים (או לפי ההגדרה). */
+    public static void applyHintBar(Activity a) {
+        View h = a.findViewById(R.id.hint);
+        if (h != null) h.setVisibility(Prefs.showKeyUi(a) ? View.VISIBLE : View.GONE);
+    }
 }
