@@ -12,6 +12,70 @@
         android:nextFocusUp="@+id/btnHome" />
 
     <LinearLayout
+        android:id="@+id/findBar"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_gravity="top"
+        android:layout_marginTop="56dp"
+        android:background="?attr/zrRow"
+        android:elevation="3dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingLeft="8dp"
+        android:paddingRight="8dp"
+        android:visibility="gone">
+
+        <EditText
+            android:id="@+id/findInput"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="חיפוש בדף"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:singleLine="true"
+            android:textColor="?attr/zrText"
+            android:textColorHint="?attr/zrTextSecondary"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/findCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="40dp"
+            android:gravity="center"
+            android:textColor="?attr/zrTextSecondary"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/findPrev"
+            android:layout_width="36dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="▲"
+            android:textColor="?attr/zrText"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/findNext"
+            android:layout_width="36dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="▼"
+            android:textColor="?attr/zrText"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/findClose"
+            android:layout_width="36dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="✕"
+            android:textColor="?attr/zrText"
+            android:textSize="16sp" />
+    </LinearLayout>
+
+    <LinearLayout
         android:id="@+id/bar"
         android:layout_width="match_parent"
         android:layout_height="56dp"

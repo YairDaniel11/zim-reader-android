@@ -11,6 +11,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.webkit.ValueCallback;
 import android.webkit.WebResourceResponse;
@@ -85,7 +86,7 @@ public class ReaderActivity extends Activity {
         titleView.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
             @Override
             public void onLayoutChange(View v, int l, int t, int r, int b, int ol, int ot, int or, int ob) {
-                boolean fits = (r - l) >= (int) (80 * getResources().getDisplayMetrics().density);
+                boolean fits = (r - l) >= (int) (40 * getResources().getDisplayMetrics().density);
                 int want = fits ? View.VISIBLE : View.INVISIBLE;
                 if (v.getVisibility() != want) v.setVisibility(want);
             }
@@ -93,6 +94,7 @@ public class ReaderActivity extends Activity {
         btnBookmark = (ImageButton) findViewById(R.id.btnBookmark);
         web = (ZimWebView) findViewById(R.id.web);
         hintView.setText(R.string.hint_reader);
+        initFindBar();
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -159,7 +161,7 @@ public class ReaderActivity extends Activity {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        if (hasFocus && !toolbarHasFocus()) web.requestFocus();
+        if (hasFocus && !toolbarHasFocus() && findBar.getVisibility() != View.VISIBLE) web.requestFocus();
         if (hasFocus) applySystemUi();
     }
 
@@ -181,6 +183,7 @@ public class ReaderActivity extends Activity {
         hideBarsOn = hideWanted();
         hintView.setVisibility(keys ? View.VISIBLE : View.GONE);
         findViewById(R.id.btnTabs).setVisibility(Prefs.tabsButton(this) ? View.VISIBLE : View.GONE);
+        fitBarButtons();
         FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) web.getLayoutParams();
         lp.topMargin = hideBarsOn ? 0 : (int) (BAR_DP * d);
         lp.bottomMargin = (hideBarsOn || !keys) ? 0 : (int) (HINT_DP * d);
@@ -188,6 +191,22 @@ public class ReaderActivity extends Activity {
         bar.setTranslationY(0);
         hintView.setTranslationY(0);
         barsShown = true;
+    }
+
+    /** במסך צר מצמצמים את רוחב כפתורי הסרגל (עד 34dp) כדי שתישאר מקום לכותרת העמוד. */
+    private void fitBarButtons() {
+        int[] ids = {R.id.btnTabs, R.id.btnHome, R.id.btnSearch, R.id.btnBookmark, R.id.btnLibrary, R.id.btnMenu};
+        android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+        int n = 0;
+        for (int id : ids) if (findViewById(id).getVisibility() == View.VISIBLE) n++;
+        float screenDp = dm.widthPixels / dm.density;
+        float w = Math.max(34, Math.min(48, (screenDp - 16 - 90) / Math.max(1, n)));
+        for (int id : ids) {
+            View b = findViewById(id);
+            ViewGroup.LayoutParams lp = b.getLayoutParams();
+            lp.width = (int) (w * dm.density);
+            b.setLayoutParams(lp);
+        }
     }
 
     private void showBars(boolean show) {
@@ -835,55 +854,79 @@ public class ReaderActivity extends Activity {
 
     // ---------- חיפוש בדף ----------
 
-    private void showFind() {
-        final android.widget.EditText input = new android.widget.EditText(this);
-        input.setSingleLine(true);
-        input.setHint("הקלד מילה לחיפוש בדף");
-        final String[] last = {null};
-        final AlertDialog dlg = new AlertDialog.Builder(this)
-                .setTitle("חיפוש בדף")
-                .setView(input)
-                .setPositiveButton("הבא", null)
-                .setNeutralButton("הקודם", null)
-                .setNegativeButton("סגור", null)
-                .create();
+    private View findBar;
+    private android.widget.EditText findInput;
+    private TextView findCount;
+    private final android.os.Handler findHandler = new android.os.Handler();
+    private final Runnable findRun = new Runnable() {
+        @Override
+        public void run() {
+            String q = findInput.getText().toString();
+            if (q.length() == 0) {
+                web.clearMatches();
+                findCount.setText("");
+            } else {
+                web.findAllAsync(q);        // מדלג לתוצאה הראשונה ומדגיש את כולן
+            }
+        }
+    };
+
+    /** שורת חיפוש קטנה בראש הדף: מחפשת תוך כדי הקלדה. הסגירה משאירה את ההדגשות. */
+    private void initFindBar() {
+        findBar = findViewById(R.id.findBar);
+        findInput = (android.widget.EditText) findViewById(R.id.findInput);
+        findCount = (TextView) findViewById(R.id.findCount);
         web.setFindListener(new WebView.FindListener() {
             @Override
             public void onFindResultReceived(int active, int total, boolean done) {
-                if (done) dlg.setTitle(total == 0 ? "לא נמצא" : "חיפוש בדף · " + (active + 1) + "/" + total);
+                if (done) findCount.setText(total == 0 ? "0" : (active + 1) + "/" + total);
             }
         });
-        dlg.setOnDismissListener(new DialogInterface.OnDismissListener() {
+        findInput.addTextChangedListener(new android.text.TextWatcher() {
             @Override
-            public void onDismiss(DialogInterface d) {
-                web.clearMatches();
-                web.setFindListener(null);
+            public void beforeTextChanged(CharSequence c, int a, int b, int d) {
             }
-        });
-        dlg.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
-        dlg.show();
-        dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
+
             @Override
-            public void onClick(View v) {
-                findStep(input.getText().toString(), last, true);
+            public void onTextChanged(CharSequence c, int a, int b, int d) {
             }
-        });
-        dlg.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(new View.OnClickListener() {
+
             @Override
-            public void onClick(View v) {
-                findStep(input.getText().toString(), last, false);
+            public void afterTextChanged(android.text.Editable e) {
+                findHandler.removeCallbacks(findRun);
+                findHandler.postDelayed(findRun, 250);
             }
         });
+        findInput.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+            @Override
+            public boolean onEditorAction(TextView v, int actionId, KeyEvent ev) {
+                findNext(true);
+                return true;
+            }
+        });
+        click(R.id.findNext, new Runnable() { public void run() { findNext(true); } });
+        click(R.id.findPrev, new Runnable() { public void run() { findNext(false); } });
+        click(R.id.findClose, new Runnable() { public void run() { closeFind(); } });
     }
 
-    private void findStep(String q, String[] last, boolean forward) {
-        if (q.length() == 0) return;
-        if (!q.equals(last[0])) {
-            last[0] = q;
-            web.findAllAsync(q);        // מדלג לתוצאה הראשונה
-        } else {
-            web.findNext(forward);
-        }
+    private void showFind() {
+        findBar.setVisibility(View.VISIBLE);
+        findInput.requestFocus();
+        findInput.selectAll();
+        ((android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE))
+                .showSoftInput(findInput, 0);
+    }
+
+    private void findNext(boolean forward) {
+        if (findInput.getText().length() > 0) web.findNext(forward);
+    }
+
+    private void closeFind() {
+        findBar.setVisibility(View.GONE);
+        findHandler.removeCallbacks(findRun);
+        ((android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE))
+                .hideSoftInputFromWindow(findInput.getWindowToken(), 0);
+        web.requestFocus();
     }
 
     // ---------- שיתוף והעתקה ----------
@@ -1139,6 +1182,21 @@ public class ReaderActivity extends Activity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent ev) {
+        if (findBar.getVisibility() == View.VISIBLE && getCurrentFocus() == findInput) {
+            // שורת החיפוש בדף פתוחה: הקלדה ומחיקה לשורה, חצים למטה/למעלה/אישור = הבא/הקודם, חזרה = סגירה
+            int kc = ev.getKeyCode();
+            boolean down = ev.getAction() == KeyEvent.ACTION_DOWN;
+            if (kc == KeyEvent.KEYCODE_BACK || kc == KeyEvent.KEYCODE_ESCAPE) {
+                if (down) closeFind();
+                return true;
+            }
+            if (kc == KeyEvent.KEYCODE_DPAD_DOWN || kc == KeyEvent.KEYCODE_DPAD_CENTER
+                    || kc == KeyEvent.KEYCODE_ENTER || kc == KeyEvent.KEYCODE_DPAD_UP) {
+                if (down) findNext(kc != KeyEvent.KEYCODE_DPAD_UP);
+                return true;
+            }
+            return super.dispatchKeyEvent(ev);
+        }
         return handleKey(ev) || super.dispatchKeyEvent(ev);
     }
 
