@@ -23,6 +23,8 @@ public class SettingsActivity extends Activity {
     private static final String[] THEMES = {"לפי המערכת", "בהיר", "כהה"};
     private static final String[] MARGINS = {"רוחב מלא", "צרים", "רחבים"};
     private static final String[] HINTS = {"אוטומטי", "תמיד", "אף פעם"};
+    private static final String[] FONTS = {"כמו בדף", "סריף", "סאנס", "מונוספייס"};
+    private static final String[] LINES = {"כמו בדף", "קטן", "בינוני", "גדול"};
 
     private ListView list;
     private final List<Runnable> actions = new ArrayList<Runnable>();
@@ -113,6 +115,35 @@ public class SettingsActivity extends Activity {
                         render();
                     }
                 });
+            }
+        });
+
+        add(rows, "גופן", FONTS[Prefs.font(this)], new Runnable() {
+            public void run() {
+                choose("גופן", FONTS, Prefs.font(SettingsActivity.this), new Pick() {
+                    public void on(int w) {
+                        Prefs.setFont(SettingsActivity.this, w);
+                        render();
+                    }
+                });
+            }
+        });
+
+        add(rows, "מרווח שורות", LINES[Prefs.lineSpacing(this)], new Runnable() {
+            public void run() {
+                choose("מרווח שורות", LINES, Prefs.lineSpacing(SettingsActivity.this), new Pick() {
+                    public void on(int w) {
+                        Prefs.setLineSpacing(SettingsActivity.this, w);
+                        render();
+                    }
+                });
+            }
+        });
+
+        add(rows, "מסך מלא", onOff(Prefs.fullscreen(this)) + " · מסתיר גם את שורת המערכת", new Runnable() {
+            public void run() {
+                Prefs.setFullscreen(SettingsActivity.this, !Prefs.fullscreen(SettingsActivity.this));
+                render();
             }
         });
 

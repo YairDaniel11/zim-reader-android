@@ -63,6 +63,8 @@ public class ReaderActivity extends Activity {
     private boolean appliedKeys;
     private boolean appliedLegacy;
     private int appliedMargin;
+    private int appliedFont;
+    private int appliedLine;
     private il.zimreader.zim.CssCompat cssCompat = new il.zimreader.zim.CssCompat();
 
     @Override
@@ -118,7 +120,9 @@ public class ReaderActivity extends Activity {
         legacyCss = computeLegacy();
         appliedLegacy = legacyCss;
         appliedMargin = Prefs.margin(this);
-        appliedHide = Prefs.hideBars(this);
+        appliedFont = Prefs.font(this);
+        appliedLine = Prefs.lineSpacing(this);
+        appliedHide = hideWanted();
         appliedKeys = Prefs.showKeyUi(this);
         applyBars();
 
@@ -145,6 +149,7 @@ public class ReaderActivity extends Activity {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus && !toolbarHasFocus()) web.requestFocus();
+        if (hasFocus) applySystemUi();
     }
 
     private final android.os.Handler hintHandler = new android.os.Handler();
@@ -162,7 +167,7 @@ public class ReaderActivity extends Activity {
     private void applyBars() {
         float d = getResources().getDisplayMetrics().density;
         boolean keys = Prefs.showKeyUi(this);
-        hideBarsOn = Prefs.hideBars(this);
+        hideBarsOn = hideWanted();
         hintView.setVisibility(keys ? View.VISIBLE : View.GONE);
         findViewById(R.id.btnTabs).setVisibility(keys ? View.GONE : View.VISIBLE);
         FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) web.getLayoutParams();
@@ -714,13 +719,17 @@ public class ReaderActivity extends Activity {
             recreate();
             return;
         }
+        applySystemUi();
         // הגדרות ששונו במסך ההגדרות
         web.getSettings().setTextZoom(Prefs.zoom(this));
         legacyCss = computeLegacy();
-        boolean reload = Prefs.margin(this) != appliedMargin || Prefs.hideBars(this) != appliedHide
+        boolean reload = Prefs.font(this) != appliedFont || Prefs.lineSpacing(this) != appliedLine
+                || Prefs.margin(this) != appliedMargin || hideWanted() != appliedHide
                 || Prefs.showKeyUi(this) != appliedKeys || legacyCss != appliedLegacy;
         appliedMargin = Prefs.margin(this);
-        appliedHide = Prefs.hideBars(this);
+        appliedFont = Prefs.font(this);
+        appliedLine = Prefs.lineSpacing(this);
+        appliedHide = hideWanted();
         appliedKeys = Prefs.showKeyUi(this);
         appliedLegacy = legacyCss;
         applyBars();
@@ -792,6 +801,157 @@ public class ReaderActivity extends Activity {
                 });
             }
         }).start();
+    }
+
+    // ---------- חיפוש בדף ----------
+
+    private void showFind() {
+        final android.widget.EditText input = new android.widget.EditText(this);
+        input.setSingleLine(true);
+        input.setHint("הקלד מילה לחיפוש בדף");
+        final String[] last = {null};
+        final AlertDialog dlg = new AlertDialog.Builder(this)
+                .setTitle("חיפוש בדף")
+                .setView(input)
+                .setPositiveButton("הבא", null)
+                .setNeutralButton("הקודם", null)
+                .setNegativeButton("סגור", null)
+                .create();
+        web.setFindListener(new WebView.FindListener() {
+            @Override
+            public void onFindResultReceived(int active, int total, boolean done) {
+                if (done) dlg.setTitle(total == 0 ? "לא נמצא" : "חיפוש בדף · " + (active + 1) + "/" + total);
+            }
+        });
+        dlg.setOnDismissListener(new DialogInterface.OnDismissListener() {
+            @Override
+            public void onDismiss(DialogInterface d) {
+                web.clearMatches();
+                web.setFindListener(null);
+            }
+        });
+        dlg.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
+        dlg.show();
+        dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                findStep(input.getText().toString(), last, true);
+            }
+        });
+        dlg.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                findStep(input.getText().toString(), last, false);
+            }
+        });
+    }
+
+    private void findStep(String q, String[] last, boolean forward) {
+        if (q.length() == 0) return;
+        if (!q.equals(last[0])) {
+            last[0] = q;
+            web.findAllAsync(q);        // מדלג לתוצאה הראשונה
+        } else {
+            web.findNext(forward);
+        }
+    }
+
+    // ---------- שיתוף והעתקה ----------
+
+    /** שיתוף או העתקה: של הטקסט המסומן (אם יש) או של כל טקסט הדף. */
+    private void shareText() {
+        js("(window.getSelection?window.getSelection().toString():'')", new ValueCallback<String>() {
+            @Override
+            public void onReceiveValue(String v) {
+                String sel = "";
+                try {
+                    if (v != null && !"null".equals(v)) sel = new org.json.JSONArray("[" + v + "]").getString(0).trim();
+                } catch (Exception ignored) {
+                }
+                final List<String> labels = new ArrayList<String>();
+                final List<String> texts = new ArrayList<String>();
+                final List<Boolean> share = new ArrayList<Boolean>();
+                String page = null;
+                String html = currentHtml();
+                if (html != null) page = FullText.htmlToText(html);
+                if (sel.length() > 0) {
+                    labels.add("שתף את הטקסט המסומן");
+                    texts.add(sel);
+                    share.add(true);
+                    labels.add("העתק את הטקסט המסומן");
+                    texts.add(sel);
+                    share.add(false);
+                }
+                if (page != null && page.length() > 0) {
+                    labels.add("שתף את כל טקסט הדף");
+                    texts.add(pageTitle() + "\n\n" + page);
+                    share.add(true);
+                    labels.add("העתק את כל טקסט הדף");
+                    texts.add(pageTitle() + "\n\n" + page);
+                    share.add(false);
+                }
+                if (labels.isEmpty()) {
+                    Toast.makeText(ReaderActivity.this, "אין טקסט", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                new AlertDialog.Builder(ReaderActivity.this)
+                        .setItems(labels.toArray(new String[0]), new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface d, int which) {
+                                String t = texts.get(which);
+                                if (share.get(which)) {
+                                    Intent i = new Intent(Intent.ACTION_SEND).setType("text/plain")
+                                            .putExtra(Intent.EXTRA_TEXT, t);
+                                    startActivity(Intent.createChooser(i, "שיתוף"));
+                                } else {
+                                    ((android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE))
+                                            .setPrimaryClip(android.content.ClipData.newPlainText("ZIM", t));
+                                    Toast.makeText(ReaderActivity.this, "הועתק", Toast.LENGTH_SHORT).show();
+                                }
+                            }
+                        })
+                        .show();
+            }
+        });
+    }
+
+    // ---------- מסך מלא, גופן ומרווח שורות ----------
+
+    /** הסתרת הסרגלים בגלילה: לפי ההגדרה, או תמיד במסך מלא. */
+    private boolean hideWanted() {
+        return Prefs.hideBars(this) || Prefs.fullscreen(this);
+    }
+
+    private void applySystemUi() {
+        if (Build.VERSION.SDK_INT < 19) return;
+        int flags = View.SYSTEM_UI_FLAG_VISIBLE;
+        if (Prefs.fullscreen(this)) {
+            flags = View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
+        }
+        getWindow().getDecorView().setSystemUiVisibility(flags);
+    }
+
+    private void toggleFullscreen() {
+        boolean on = !Prefs.fullscreen(this);
+        Prefs.setFullscreen(this, on);
+        if (on) Toast.makeText(this, "מסך מלא · גלול למעלה כדי להחזיר את הסרגל", Toast.LENGTH_LONG).show();
+        onResume();     // מחיל את ההגדרות החדשות (סרגלים, ריווח הדף, מסך המערכת)
+    }
+
+    private static final String[] FONT_FAMILIES = {null, "serif", "sans-serif", "monospace"};
+    private static final String[] LINE_HEIGHTS = {null, "1.5", "1.8", "2.1"};
+
+    private String fontCss() {
+        StringBuilder sb = new StringBuilder();
+        int f = Prefs.font(this), l = Prefs.lineSpacing(this);
+        if (f > 0 && f < FONT_FAMILIES.length) {
+            sb.append("body,body *{font-family:").append(FONT_FAMILIES[f]).append("!important}");
+        }
+        if (l > 0 && l < LINE_HEIGHTS.length) {
+            sb.append("body,p,li,td,dd,div{line-height:").append(LINE_HEIGHTS[l]).append("!important}");
+        }
+        return sb.toString();
     }
 
     // ---------- גלילה אוטומטית ----------
@@ -870,6 +1030,9 @@ public class ReaderActivity extends Activity {
         items.add("ערך אקראי בספר הנוכחי");
         items.add("ערך אקראי מכל הספרים");
         items.add(autoScrolling ? "עצור גלילה אוטומטית" : "גלילה אוטומטית");
+        items.add("חיפוש בדף");
+        items.add("שיתוף / העתקה של טקסט");
+        items.add(Prefs.fullscreen(this) ? "יציאה ממסך מלא" : "מסך מלא");
         if (keys) items.add("עזרה: מקשים");
         new AlertDialog.Builder(this)
                 .setItems(items.toArray(new String[0]), new DialogInterface.OnClickListener() {
@@ -885,6 +1048,9 @@ public class ReaderActivity extends Activity {
                             case 6: randomArticle(false); break;
                             case 7: randomArticle(true); break;
                             case 8: toggleAutoScroll(); break;
+                            case 9: showFind(); break;
+                            case 10: shareText(); break;
+                            case 11: toggleFullscreen(); break;
                             default: Keys.showHelp(ReaderActivity.this);
                         }
                     }
@@ -922,6 +1088,7 @@ public class ReaderActivity extends Activity {
                 .append("div,section,article,aside,figure,center,form{width:auto!important;min-width:0!important}")
                 .append("table{width:100%!important;table-layout:auto!important}")
                 .append("td,th{min-width:0!important;word-break:break-word;overflow-wrap:break-word}")
+                .append(fontCss())
                 .append("</style>");
         int at = low.indexOf("</head>");
         if (at < 0) return sb + html;

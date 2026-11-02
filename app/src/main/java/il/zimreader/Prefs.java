@@ -143,6 +143,33 @@ public final class Prefs {
         if (l.remove(q)) saveSearches(c, l);
     }
 
+    /** גופן הדף: 0 = כמו בדף, 1 = סריף, 2 = סאנס, 3 = מונוספייס. */
+    public static int font(Context c) {
+        return sp(c).getInt("font", 0);
+    }
+
+    public static void setFont(Context c, int v) {
+        sp(c).edit().putInt("font", v).apply();
+    }
+
+    /** מרווח שורות: 0 = כמו בדף, 1 = קטן, 2 = בינוני, 3 = גדול. */
+    public static int lineSpacing(Context c) {
+        return sp(c).getInt("lineSpacing", 0);
+    }
+
+    public static void setLineSpacing(Context c, int v) {
+        sp(c).edit().putInt("lineSpacing", v).apply();
+    }
+
+    /** מסך מלא: גם שורת המערכת מוסתרת, והסרגלים נעלמים בגלילה. */
+    public static boolean fullscreen(Context c) {
+        return sp(c).getBoolean("fullscreen", false);
+    }
+
+    public static void setFullscreen(Context c, boolean v) {
+        sp(c).edit().putBoolean("fullscreen", v).apply();
+    }
+
     public static void setForceLegacyCss(Context c, boolean v) {
         sp(c).edit().putBoolean("legacyCss", v).apply();
     }
