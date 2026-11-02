@@ -81,6 +81,15 @@ public class ReaderActivity extends Activity {
         bar = findViewById(R.id.bar);
         hintView = (TextView) findViewById(R.id.hint);
         titleView = (TextView) findViewById(R.id.title);
+        // כשאין מקום לכותרת בסרגל היא הייתה נחתכת ל"…": מסתירים אותה (הטקסט נשמר לסימניות)
+        titleView.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+            @Override
+            public void onLayoutChange(View v, int l, int t, int r, int b, int ol, int ot, int or, int ob) {
+                boolean fits = (r - l) >= (int) (80 * getResources().getDisplayMetrics().density);
+                int want = fits ? View.VISIBLE : View.INVISIBLE;
+                if (v.getVisibility() != want) v.setVisibility(want);
+            }
+        });
         btnBookmark = (ImageButton) findViewById(R.id.btnBookmark);
         web = (ZimWebView) findViewById(R.id.web);
         hintView.setText(R.string.hint_reader);
@@ -171,7 +180,7 @@ public class ReaderActivity extends Activity {
         boolean keys = Prefs.showKeyUi(this);
         hideBarsOn = hideWanted();
         hintView.setVisibility(keys ? View.VISIBLE : View.GONE);
-        findViewById(R.id.btnTabs).setVisibility(keys ? View.GONE : View.VISIBLE);
+        findViewById(R.id.btnTabs).setVisibility(View.VISIBLE);
         FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) web.getLayoutParams();
         lp.topMargin = hideBarsOn ? 0 : (int) (BAR_DP * d);
         lp.bottomMargin = (hideBarsOn || !keys) ? 0 : (int) (HINT_DP * d);
@@ -400,7 +409,7 @@ public class ReaderActivity extends Activity {
         String[] labels = found.values().toArray(new String[0]);
         final String[] names = labels;
         AlertDialog dlg = new AlertDialog.Builder(this)
-                .setTitle("קישורים (" + labels.length + ") · לחיצה ארוכה: כרטיסייה חדשה")
+                .setTitle("קישורים (" + labels.length + ")")
                 .setItems(labels, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int which) {
@@ -625,7 +634,7 @@ public class ReaderActivity extends Activity {
             }
         });
         final AlertDialog dlg = new AlertDialog.Builder(this)
-                .setTitle("כרטיסיות (" + n + "/10)" + (Prefs.showKeyUi(this) ? " · חץ שמאלה = סגירה" : ""))
+                .setTitle("כרטיסיות (" + n + "/10)")
                 .setAdapter(adapter, null)
                 .create();
         holder[0] = dlg;
@@ -1271,6 +1280,37 @@ public class ReaderActivity extends Activity {
 
     // ---------- WebView ----------
 
+    /**
+     * ניקוי חלונות צפים שנתקעים מעל התוכן (בלי JavaScript של האתר אי אפשר לסגור אותם): אלמנטים קבועים
+     * במסך (fixed/sticky), והודעת זכויות היוצרים של אוצר הספרים השיתופי (הקופסה כולה).
+     */
+    private static final String CLEAN_JS =
+            "(function(){try{var all=document.body?document.body.getElementsByTagName('*'):[];"
+            + "for(var i=0;i<all.length;i++){var e=all[i],cs=getComputedStyle(e);"
+            + "if(cs.position==='fixed'||cs.position==='sticky'){e.style.setProperty('display','none','important');}}"
+            + "var key='מקפיד מאד על שמירת זכויות',best=null,bl=1e9;"
+            + "for(i=0;i<all.length;i++){e=all[i];var t=e.textContent;"
+            + "if(t&&t.length<1500&&t.indexOf(key)>=0&&t.length<bl){best=e;bl=t.length;}}"
+            + "if(best){var n=best;while(n.parentNode&&n.parentNode!==document.body"
+            + "&&n.parentNode.textContent.length<1500&&n.parentNode.textContent.indexOf('אם אתם בעלי')>=0)n=n.parentNode;"
+            + "n.style.setProperty('display','none','important');}}catch(x){}})();";
+
+    private void cleanPopups() {
+        js(CLEAN_JS, null);
+        web.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                js(CLEAN_JS, null);
+            }
+        }, 800);
+        web.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                js(CLEAN_JS, null);
+            }
+        }, 2500);
+    }
+
     private static final String NAV_JS =
             "(function(){try{if(!window.zr){var L=[],o=null;"
             + "function collect(){L=[];var as=document.getElementsByTagName('a');"
@@ -1415,6 +1455,7 @@ public class ReaderActivity extends Activity {
                 }, 400);
             }
             js(NAV_JS.replace("%NIGHT%", ThemeUtil.isDark(ReaderActivity.this) ? "true" : "false"), null);
+            cleanPopups();
             if (pendingFind != null) {
                 String f = pendingFind.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ");
                 pendingFind = null;

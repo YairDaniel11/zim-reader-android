@@ -178,8 +178,7 @@ public class SearchActivity extends Activity {
                 }
             }
         }));
-        status(recents.isEmpty() ? null
-                : "חיפושים אחרונים" + (Prefs.showKeyUi(this) ? " · חץ שמאלה = מחיקה" : ""));
+        status(recents.isEmpty() ? null : "חיפושים אחרונים");
     }
 
     private void useRecent(int pos) {

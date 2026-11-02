@@ -16,7 +16,7 @@ import java.util.List;
 /**
  * שורת רשימה פשוטה: כותרת + שורת משנה (מוסתרת כשריקה), ואופציונלית סמל X למחיקת השורה.
  * ה-X הוא רק תצוגה (לא רכיב לחיץ, כדי לא להפריע ללחיצה על השורה ולמקשים); את המחיקה מפעיל
- * {@link #attach}: נגיעה באזור ה-X, או חץ שמאלה / Delete על שורה נבחרת.
+ * {@link #attach}: נגיעה באזור ה-X, או במקשים: חץ שמאלה מעביר את המיקוד ל-X ואישור מוחק.
  */
 public class RowAdapter extends ArrayAdapter<String[]> {
     public interface Deleter {
@@ -54,18 +54,27 @@ public class RowAdapter extends ArrayAdapter<String[]> {
         return v;
     }
 
-    private static boolean tryDelete(ListView lv, int pos) {
+    private static boolean canDelete(ListView lv, int pos) {
         if (!(lv.getAdapter() instanceof RowAdapter) || pos < 0) return false;
         RowAdapter a = (RowAdapter) lv.getAdapter();
-        if (a.deleter == null || pos >= a.getCount() || !a.deleter.canDelete(pos)) return false;
-        a.deleter.delete(pos);
+        return a.deleter != null && pos < a.getCount() && a.deleter.canDelete(pos);
+    }
+
+    private static boolean tryDelete(ListView lv, int pos) {
+        if (!canDelete(lv, pos)) return false;
+        ((RowAdapter) lv.getAdapter()).deleter.delete(pos);
         return true;
     }
 
-    /** מחבר לרשימה לחיצה על שורה + מחיקה (נגיעה ב-X או חץ שמאלה / Delete). */
+    /**
+     * מחבר לרשימה לחיצה על שורה + מחיקה. במגע: נגיעה ב-X. במקשים: חץ שמאלה על שורה נבחרת מעביר את
+     * המיקוד ל-X (מסומן במסגרת), אישור מוחק, וכל חץ אחר חוזר לרשימה.
+     */
     public static void attach(final ListView lv, final AdapterView.OnItemClickListener click) {
         final boolean[] touched = {false};
         final float[] downX = {0};
+        final int[] xPos = {-1};
+        final View[] xView = {null};
         final float pad = 8 * lv.getResources().getDisplayMetrics().density;
         lv.setOnTouchListener(new View.OnTouchListener() {
             @Override
@@ -78,12 +87,36 @@ public class RowAdapter extends ArrayAdapter<String[]> {
             }
         });
         lv.setOnKeyListener(new View.OnKeyListener() {
+            private void leaveX() {
+                if (xView[0] != null) xView[0].setBackgroundResource(0);
+                xView[0] = null;
+                xPos[0] = -1;
+            }
+
             @Override
             public boolean onKey(View v, int code, KeyEvent e) {
-                if (e.getAction() != KeyEvent.ACTION_DOWN) return false;
+                boolean ok = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER;
+                if (e.getAction() != KeyEvent.ACTION_DOWN) return xPos[0] >= 0 && ok;
                 touched[0] = false;
-                if (code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_FORWARD_DEL) {
-                    return tryDelete(lv, lv.getSelectedItemPosition());
+                if (xPos[0] >= 0) {
+                    int p = xPos[0];
+                    leaveX();
+                    if (ok) {
+                        tryDelete(lv, p);
+                        return true;
+                    }
+                    return code == KeyEvent.KEYCODE_DPAD_RIGHT;
+                }
+                if (code == KeyEvent.KEYCODE_DPAD_LEFT) {
+                    int pos = lv.getSelectedItemPosition();
+                    View row = lv.getSelectedView();
+                    View x = row == null ? null : row.findViewById(R.id.rowDelete);
+                    if (x != null && canDelete(lv, pos)) {
+                        xView[0] = x;
+                        xPos[0] = pos;
+                        x.setBackgroundResource(R.drawable.bar_focus);
+                        return true;
+                    }
                 }
                 return false;
             }
