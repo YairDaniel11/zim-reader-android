@@ -17,7 +17,8 @@
 
         <EditText
             android:id="@+id/query"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_height="wrap_content"
             android:background="@android:color/transparent"
             android:hint="@string/search_hint"
@@ -29,6 +30,13 @@
             android:textColor="#FFFFFFFF"
             android:textColorHint="#99FFFFFF"
             android:textSize="19sp" />
+
+        <ImageButton
+            android:id="@+id/btnOptions"
+            style="@style/BarButton"
+            android:contentDescription="אפשרויות"
+            android:src="@drawable/ic_more"
+            android:visibility="gone" />
     </LinearLayout>
 
     <CheckBox
@@ -36,19 +44,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:minHeight="48dp"
-        android:nextFocusDown="@+id/chkAll"
+        android:nextFocusDown="@+id/list"
         android:nextFocusUp="@id/query"
         android:text="@string/search_in_content"
-        android:textColor="?attr/zrText" />
-
-    <CheckBox
-        android:id="@+id/chkAll"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:minHeight="48dp"
-        android:nextFocusDown="@+id/list"
-        android:nextFocusUp="@id/chkContent"
-        android:text="חיפוש בכל הספרים"
         android:textColor="?attr/zrText" />
 
     <TextView
@@ -69,5 +67,5 @@
         android:dividerHeight="1dp"
         android:drawSelectorOnTop="true"
         android:listSelector="@drawable/list_selector"
-        android:nextFocusUp="@id/chkAll" />
+        android:nextFocusUp="@id/chkContent" />
 </LinearLayout>

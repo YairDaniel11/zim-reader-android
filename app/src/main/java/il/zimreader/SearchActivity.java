@@ -35,7 +35,7 @@ public class SearchActivity extends Activity {
     private ListView list;
     private TextView status;
     private CheckBox chkContent;
-    private CheckBox chkAll;
+    private boolean allBooks;       // חיפוש בכל הספרים (מתוך תפריט האפשרויות)
     private final Handler handler = new Handler();
     private int seq;
     private volatile boolean cancel;
@@ -65,8 +65,16 @@ public class SearchActivity extends Activity {
         list = (ListView) findViewById(R.id.list);
         status = (TextView) findViewById(R.id.status);
         chkContent = (CheckBox) findViewById(R.id.chkContent);
-        chkAll = (CheckBox) findViewById(R.id.chkAll);
-        if (Library.list().size() < 2) chkAll.setVisibility(View.GONE);
+        View btnOptions = findViewById(R.id.btnOptions);
+        if (!Prefs.showKeyUi(this)) {      // במכשיר מגע אין מקש תפריט: כפתור בסרגל
+            btnOptions.setVisibility(View.VISIBLE);
+            btnOptions.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showOptions();
+                }
+            });
+        }
 
         query.addTextChangedListener(new TextWatcher() {
             @Override
@@ -93,21 +101,12 @@ public class SearchActivity extends Activity {
                 return false;
             }
         });
-        CompoundButton.OnCheckedChangeListener modeChanged = new CompoundButton.OnCheckedChangeListener() {
+        chkContent.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton b, boolean on) {
-                cancel = true;
-                clearResults();
-                if (!chkContent.isChecked()) {
-                    scheduleTitles(query.getText().toString());
-                } else {
-                    status("הקלד מילים ולחץ אישור כדי לחפש בתוכן");
-                    if (query.getText().toString().trim().length() == 0) showRecents();
-                }
+                modeChanged();
             }
-        };
-        chkContent.setOnCheckedChangeListener(modeChanged);
-        chkAll.setOnCheckedChangeListener(modeChanged);
+        });
         RowAdapter.attach(list, new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> p, View v, int pos, long id) {
@@ -120,12 +119,47 @@ public class SearchActivity extends Activity {
         else showRecents();
     }
 
+    /** מצב החיפוש השתנה (תוכן / כל הספרים): מנקה תוצאות ומתחיל מחדש. */
+    private void modeChanged() {
+        cancel = true;
+        clearResults();
+        if (!chkContent.isChecked()) {
+            scheduleTitles(query.getText().toString());
+        } else {
+            status("הקלד מילים ולחץ אישור כדי לחפש בתוכן");
+            if (query.getText().toString().trim().length() == 0) showRecents();
+        }
+    }
+
+    /** תפריט האפשרויות (מקש עליון שמאלי / MENU). */
+    private void showOptions() {
+        if (Library.list().size() < 2) {
+            android.widget.Toast.makeText(this, "יש רק ספר אחד", android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+        new android.app.AlertDialog.Builder(this)
+                .setItems(new String[]{(allBooks ? "✓ " : "") + "חיפוש בכל הספרים"},
+                        new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int which) {
+                        allBooks = !allBooks;
+                        query.setHint(allBooks ? "חיפוש בכל הספרים…" : getString(R.string.search_hint));
+                        modeChanged();
+                    }
+                })
+                .show();
+    }
+
     /**
      * במכשיר מקשים: הקלדה (אותיות, ספרות, רווח) או מחיקה כשהמיקוד על התוצאות / תיבות הסימון עוברות לשורת
      * החיפוש, עם הסמן בסופה, כך שאפשר להוסיף מילה או למחוק אותיות בלי לעלות ידנית לשורה.
      */
     @Override
     public boolean dispatchKeyEvent(KeyEvent ev) {
+        if (ev.getKeyCode() == KeyEvent.KEYCODE_MENU || ev.getKeyCode() == KeyEvent.KEYCODE_SOFT_LEFT) {
+            if (ev.getAction() == KeyEvent.ACTION_DOWN && ev.getRepeatCount() == 0) showOptions();
+            return true;
+        }
         if (query != null && ev.getAction() == KeyEvent.ACTION_DOWN && !query.hasFocus()
                 && (ev.isPrintingKey() || ev.getKeyCode() == KeyEvent.KEYCODE_DEL)) {
             query.requestFocus();
@@ -157,7 +191,7 @@ public class SearchActivity extends Activity {
     private List<String> searchBooks() {
         List<String> out = new ArrayList<String>();
         out.add(bookPath);
-        if (chkAll.isChecked()) {
+        if (allBooks) {
             for (Library.Book b : Library.list()) {
                 if (!b.path.equals(bookPath)) out.add(b.path);
             }
@@ -262,7 +296,7 @@ public class SearchActivity extends Activity {
         titleResults.addAll(r);
         titleBooks.clear();
         titleBooks.addAll(rb);
-        boolean multi = chkAll.isChecked();
+        boolean multi = allBooks;
         List<String[]> rows = new ArrayList<String[]>();
         for (int i = 0; i < r.size(); i++) {
             String title = ZimFile.displayTitle(r.get(i));
@@ -333,7 +367,7 @@ public class SearchActivity extends Activity {
         contentResults.addAll(hits);
         contentBooks.clear();
         contentBooks.addAll(hitBooks);
-        boolean multi = chkAll.isChecked();
+        boolean multi = allBooks;
         List<String[]> rows = new ArrayList<String[]>();
         for (int i = 0; i < hits.size(); i++) {
             FullText.Hit h = hits.get(i);
