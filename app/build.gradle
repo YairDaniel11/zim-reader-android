@@ -43,7 +43,7 @@ android {
     // שם APK קריא במקום app-debug.apk (בלי המילה debug)
     applicationVariants.all { variant ->
         variant.outputs.all { output ->
-            outputFileName = "${rootProject.name}-${variant.versionName}.apk"
+            outputFileName = "${rootProject.name}.apk"
         }
     }
 }
