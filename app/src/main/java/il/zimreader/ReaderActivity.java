@@ -274,6 +274,8 @@ public class ReaderActivity extends Activity {
                 clearHist = switching;
                 cssCompat = new il.zimreader.zim.CssCompat();
             }
+            zim = Library.open(book);     // אם הספר נסגר בינתיים - נפתח מחדש
+            Library.pin(book);
             Prefs.setLastBook(this, book);
             if (path == null) path = Prefs.position(this, book);
             if (path == null || zim.findByFullPath(path) == null) {

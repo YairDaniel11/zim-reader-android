@@ -107,16 +107,32 @@ public final class Library {
         return sum;
     }
 
+    private static String pinned;
+
+    /** הספר שבשימוש הקורא: לא ייסגר כשנפתחים ספרים אחרים. */
+    public static synchronized void pin(String path) {
+        pinned = path;
+    }
+
     public static synchronized ZimFile open(String path) throws IOException {
         ZimFile z = open.get(path);
         if (z == null) {
             z = path.startsWith("content://") ? openContent(path) : openFile(path);
             // משאירים עד 3 קבצים פתוחים
             if (open.size() >= 3) {
-                String victim = open.keySet().iterator().next();
-                try {
-                    open.remove(victim).close();
-                } catch (IOException ignored) {
+                // לא סוגרים את הספר שהקורא פתוח בו (חיפוש / ערך אקראי בספרים אחרים פותחים ספרים נוספים)
+                String victim = null;
+                for (String k : open.keySet()) {
+                    if (!k.equals(pinned)) {
+                        victim = k;
+                        break;
+                    }
+                }
+                if (victim != null) {
+                    try {
+                        open.remove(victim).close();
+                    } catch (IOException ignored) {
+                    }
                 }
             }
             open.put(path, z);
