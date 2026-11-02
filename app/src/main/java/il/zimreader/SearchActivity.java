@@ -156,6 +156,20 @@ public class SearchActivity extends Activity {
      */
     @Override
     public boolean dispatchKeyEvent(KeyEvent ev) {
+        // חץ למטה מתיבת הסימון עובר לתוצאות (בלי להסתמך על חישוב המיקוד של המערכת, שנתקע במכשירים מסוימים)
+        if (ev.getKeyCode() == KeyEvent.KEYCODE_DPAD_DOWN && getCurrentFocus() == chkContent
+                && list.getCount() > 0) {
+            if (ev.getAction() == KeyEvent.ACTION_DOWN) {
+                list.requestFocus();
+                list.setSelection(0);
+            }
+            return true;
+        }
+        if (ev.getKeyCode() == KeyEvent.KEYCODE_DPAD_UP && getCurrentFocus() == list
+                && list.getSelectedItemPosition() <= 0) {
+            if (ev.getAction() == KeyEvent.ACTION_DOWN) chkContent.requestFocus();
+            return true;
+        }
         if (ev.getKeyCode() == KeyEvent.KEYCODE_MENU || ev.getKeyCode() == KeyEvent.KEYCODE_SOFT_LEFT) {
             if (ev.getAction() == KeyEvent.ACTION_DOWN && ev.getRepeatCount() == 0) showOptions();
             return true;
