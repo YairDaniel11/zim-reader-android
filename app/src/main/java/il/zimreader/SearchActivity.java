@@ -89,6 +89,16 @@ public class SearchActivity extends Activity {
             public void afterTextChanged(Editable e) {
                 if (!chkContent.isChecked()) scheduleTitles(e.toString());
                 else if (e.toString().trim().length() == 0) showRecents();
+                else scheduleContent(e.toString());
+            }
+        });
+        // מקש אישור (DPAD_CENTER) בשורת החיפוש: במכשירי מקשים הוא לא תמיד מפעיל את פעולת ה-IME
+        query.setOnKeyListener(new View.OnKeyListener() {
+            @Override
+            public boolean onKey(View v, int code, KeyEvent e) {
+                if (code != KeyEvent.KEYCODE_DPAD_CENTER && code != KeyEvent.KEYCODE_ENTER) return false;
+                if (e.getAction() == KeyEvent.ACTION_DOWN && e.getRepeatCount() == 0) submit();
+                return true;
             }
         });
         query.setOnEditorActionListener(new TextView.OnEditorActionListener() {
@@ -126,7 +136,8 @@ public class SearchActivity extends Activity {
         if (!chkContent.isChecked()) {
             scheduleTitles(query.getText().toString());
         } else {
-            status("הקלד מילים ולחץ אישור כדי לחפש בתוכן");
+            status("הקלד מילים - החיפוש בתוכן מתחיל אוטומטית");
+            if (query.getText().toString().trim().length() > 0) scheduleContent(query.getText().toString());
             if (query.getText().toString().trim().length() == 0) showRecents();
         }
     }
@@ -249,6 +260,19 @@ public class SearchActivity extends Activity {
         query.setText(q);
         query.setSelection(q.length());
         if (chkContent.isChecked()) runContentSearch(q);
+    }
+
+    /** חיפוש בתוכן אוטומטי: מתחיל כשההקלדה נעצרת לרגע (ומבטל חיפוש קודם שעדיין רץ). */
+    private void scheduleContent(final String q) {
+        handler.removeCallbacksAndMessages(null);
+        seq++;
+        cancel = true;
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (!isFinishing() && chkContent.isChecked()) runContentSearch(q);
+            }
+        }, 800);
     }
 
     private void submit() {
