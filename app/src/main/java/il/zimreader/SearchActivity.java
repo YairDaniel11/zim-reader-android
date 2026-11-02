@@ -108,7 +108,7 @@ public class SearchActivity extends Activity {
         };
         chkContent.setOnCheckedChangeListener(modeChanged);
         chkAll.setOnCheckedChangeListener(modeChanged);
-        list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+        RowAdapter.attach(list, new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> p, View v, int pos, long id) {
                 openResult(pos);
@@ -178,7 +178,8 @@ public class SearchActivity extends Activity {
                 }
             }
         }));
-        status(recents.isEmpty() ? null : "חיפושים אחרונים");
+        status(recents.isEmpty() ? null
+                : "חיפושים אחרונים" + (Prefs.showKeyUi(this) ? " · חץ שמאלה = מחיקה" : ""));
     }
 
     private void useRecent(int pos) {

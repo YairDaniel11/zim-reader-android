@@ -607,18 +607,20 @@ public class ReaderActivity extends Activity {
                 closeTab(position - 1);
             }
         });
-        AlertDialog dlg = new AlertDialog.Builder(this)
-                .setTitle("כרטיסיות (" + n + "/10)")
-                .setAdapter(adapter, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface d, int which) {
-                        if (which == 0) openSearch();
-                        else if (which > 1) switchToTab(which - 1);
-                    }
-                })
+        final AlertDialog dlg = new AlertDialog.Builder(this)
+                .setTitle("כרטיסיות (" + n + "/10)" + (Prefs.showKeyUi(this) ? " · חץ שמאלה = סגירה" : ""))
+                .setAdapter(adapter, null)
                 .create();
         holder[0] = dlg;
         dlg.show();
+        RowAdapter.attach(dlg.getListView(), new android.widget.AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(android.widget.AdapterView<?> p, View v, int which, long id) {
+                dlg.dismiss();
+                if (which == 0) openSearch();
+                else if (which > 1) switchToTab(which - 1);
+            }
+        });
         dlg.getListView().setOnItemLongClickListener(new android.widget.AdapterView.OnItemLongClickListener() {
             @Override
             public boolean onItemLongClick(android.widget.AdapterView<?> p, View v, int pos, long id) {
