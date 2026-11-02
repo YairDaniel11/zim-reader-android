@@ -120,6 +120,20 @@ public class SearchActivity extends Activity {
         else showRecents();
     }
 
+    /**
+     * במכשיר מקשים: הקלדה (אותיות, ספרות, רווח) או מחיקה כשהמיקוד על התוצאות / תיבות הסימון עוברות לשורת
+     * החיפוש, עם הסמן בסופה, כך שאפשר להוסיף מילה או למחוק אותיות בלי לעלות ידנית לשורה.
+     */
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent ev) {
+        if (query != null && ev.getAction() == KeyEvent.ACTION_DOWN && !query.hasFocus()
+                && (ev.isPrintingKey() || ev.getKeyCode() == KeyEvent.KEYCODE_DEL)) {
+            query.requestFocus();
+            query.setSelection(query.getText().length());
+        }
+        return super.dispatchKeyEvent(ev);
+    }
+
     private void status(String text) {
         if (text == null) {
             status.setVisibility(View.GONE);

@@ -180,7 +180,7 @@ public class ReaderActivity extends Activity {
         boolean keys = Prefs.showKeyUi(this);
         hideBarsOn = hideWanted();
         hintView.setVisibility(keys ? View.VISIBLE : View.GONE);
-        findViewById(R.id.btnTabs).setVisibility(View.VISIBLE);
+        findViewById(R.id.btnTabs).setVisibility(Prefs.tabsButton(this) ? View.VISIBLE : View.GONE);
         FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) web.getLayoutParams();
         lp.topMargin = hideBarsOn ? 0 : (int) (BAR_DP * d);
         lp.bottomMargin = (hideBarsOn || !keys) ? 0 : (int) (HINT_DP * d);

@@ -172,6 +172,15 @@ public final class Prefs {
         sp(c).edit().putBoolean("fullscreen", v).apply();
     }
 
+    /** כפתור כרטיסיות בסרגל העליון (על חשבון המקום של כותרת העמוד). */
+    public static boolean tabsButton(Context c) {
+        return sp(c).getBoolean("tabsButton", false);
+    }
+
+    public static void setTabsButton(Context c, boolean v) {
+        sp(c).edit().putBoolean("tabsButton", v).apply();
+    }
+
     public static void setForceLegacyCss(Context c, boolean v) {
         sp(c).edit().putBoolean("legacyCss", v).apply();
     }

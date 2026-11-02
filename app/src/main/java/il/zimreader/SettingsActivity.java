@@ -147,6 +147,15 @@ public class SettingsActivity extends Activity {
             }
         });
 
+        add(rows, "כפתור כרטיסיות בסרגל",
+                onOff(Prefs.tabsButton(this)) + " · תופס מקום מכותרת העמוד (הכרטיסיות זמינות גם בתפריט)",
+                new Runnable() {
+            public void run() {
+                Prefs.setTabsButton(SettingsActivity.this, !Prefs.tabsButton(SettingsActivity.this));
+                render();
+            }
+        });
+
         add(rows, "הסתר סרגלים בגלילה למטה",
                 onOff(Prefs.hideBars(this)) + " · הסרגלים חוזרים בגלילה למעלה", new Runnable() {
             public void run() {
