@@ -37,7 +37,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: zim-reader-debug
+          name: zim-reader
           path: app/build/outputs/apk/debug/*.apk
 
       - name: Publish to GitHub Release
@@ -48,5 +48,5 @@ jobs:
           TAG="build-${{ github.run_number }}"
           gh release create "$TAG" app/build/outputs/apk/debug/*.apk \
             --title "Build ${{ github.run_number }}" \
-            --notes "APK לבדיקה (debug). מינימום אנדרואיד 4.4." \
+            --notes "APK לבדיקה. מינימום אנדרואיד 4.4." \
             --latest
