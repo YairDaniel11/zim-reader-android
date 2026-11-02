@@ -24,6 +24,8 @@ public final class Prefs {
         public long ts;
         /** מיקום גלילה (פיקסלי CSS) - לכרטיסיות. */
         public int y;
+        /** תיקיית סימניות ("" = ראשי). */
+        public String folder = "";
     }
 
     private static SharedPreferences sp(Context c) {
@@ -198,6 +200,7 @@ public final class Prefs {
                 it.title = o.optString("t", it.path);
                 it.ts = o.optLong("ts");
                 it.y = o.optInt("y");
+                it.folder = o.optString("f", "");
                 out.add(it);
             }
         } catch (Exception ignored) {
@@ -215,6 +218,7 @@ public final class Prefs {
                 o.put("t", it.title);
                 o.put("ts", it.ts);
                 o.put("y", it.y);
+                if (it.folder != null && it.folder.length() > 0) o.put("f", it.folder);
                 a.put(o);
             }
         } catch (Exception ignored) {
@@ -249,6 +253,11 @@ public final class Prefs {
 
     /** מחזיר true אם אחרי הפעולה הערך מסומן. */
     public static synchronized boolean toggleBookmark(Context c, String book, String path, String title) {
+        return toggleBookmark(c, book, path, title, 0);
+    }
+
+    /** y = מיקום הגלילה שנשמר עם הסימנייה. */
+    public static synchronized boolean toggleBookmark(Context c, String book, String path, String title, int y) {
         List<Item> l = load(c, BOOKMARKS);
         int i = indexOf(l, book, path);
         if (i >= 0) {
@@ -261,9 +270,43 @@ public final class Prefs {
         it.path = path;
         it.title = title;
         it.ts = System.currentTimeMillis();
+        it.y = y;
         l.add(0, it);
         save(c, BOOKMARKS, l);
         return true;
+    }
+
+    /** שמות תיקיות הסימניות (לפי סדר א-ב). */
+    public static synchronized List<String> bookmarkFolders(Context c) {
+        java.util.TreeSet<String> set = new java.util.TreeSet<String>();
+        for (Item it : load(c, BOOKMARKS)) {
+            if (it.folder != null && it.folder.length() > 0) set.add(it.folder);
+        }
+        return new ArrayList<String>(set);
+    }
+
+    public static synchronized void setBookmarkFolder(Context c, int index, String folder) {
+        List<Item> l = load(c, BOOKMARKS);
+        if (index >= 0 && index < l.size()) {
+            l.get(index).folder = folder;
+            save(c, BOOKMARKS, l);
+        }
+    }
+
+    /** שינוי שם תיקייה; שם ריק = מחיקת התיקייה (הסימניות חוזרות לראשי). */
+    public static synchronized void renameBookmarkFolder(Context c, String from, String to) {
+        List<Item> l = load(c, BOOKMARKS);
+        for (Item it : l) if (from.equals(it.folder)) it.folder = to;
+        save(c, BOOKMARKS, l);
+    }
+
+    /** בהפעלה קרה: ערך אקראי מהספר האחרון (במקום להמשיך מהמקום האחרון). */
+    public static boolean dailyRandom(Context c) {
+        return sp(c).getBoolean("dailyRandom", true);
+    }
+
+    public static void setDailyRandom(Context c, boolean v) {
+        sp(c).edit().putBoolean("dailyRandom", v).apply();
     }
 
     public static synchronized void remove(Context c, String key, int index) {

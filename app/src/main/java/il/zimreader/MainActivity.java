@@ -82,7 +82,7 @@ public class MainActivity extends Activity {
         });
         render();
         if (isExternalView(getIntent())) openExternal(getIntent());
-        else if (savedInstanceState == null && Prefs.resumeLast(this)) resumeLast();
+        else if (savedInstanceState == null && (Prefs.resumeLast(this) || Prefs.dailyRandom(this))) resumeLast();
     }
 
     private static boolean isExternalView(Intent intent) {
@@ -97,7 +97,8 @@ public class MainActivity extends Activity {
         if (book == null) return;
         if (book.startsWith("/") && !new java.io.File(book).exists()) return;
         Intent i = new Intent(this, ReaderActivity.class).putExtra(ReaderActivity.EX_BOOK, book);
-        if (path != null) i.putExtra(ReaderActivity.EX_PATH, path);
+        if (Prefs.dailyRandom(this)) i.putExtra(ReaderActivity.EX_RANDOM, true);
+        else if (path != null) i.putExtra(ReaderActivity.EX_PATH, path);
         startActivity(i);
     }
 

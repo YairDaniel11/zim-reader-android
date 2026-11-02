@@ -155,6 +155,15 @@ public class SettingsActivity extends Activity {
             }
         });
 
+        add(rows, "ערך היום בהפעלה",
+                onOff(Prefs.dailyRandom(this)) + " · בהפעלה נפתח ערך אקראי מהספר האחרון (המקום הקודם נשאר בכרטיסיות)",
+                new Runnable() {
+            public void run() {
+                Prefs.setDailyRandom(SettingsActivity.this, !Prefs.dailyRandom(SettingsActivity.this));
+                render();
+            }
+        });
+
         add(rows, "פתיחה בהפעלה",
                 Prefs.resumeLast(this) ? "במקום האחרון שנקרא" : "ברשימת הספרים", new Runnable() {
             public void run() {

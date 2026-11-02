@@ -39,6 +39,8 @@ public class ReaderActivity extends Activity {
     public static final String EX_BOOK = "book";
     public static final String EX_PATH = "path";
     public static final String EX_FIND = "find";
+    public static final String EX_Y = "y";
+    public static final String EX_RANDOM = "random";
 
     private static final String BASE = "https://zim.local/";
     private static final int BAR_DP = 56;
@@ -234,6 +236,20 @@ public class ReaderActivity extends Activity {
             return;
         }
         pendingFind = intent.getStringExtra(EX_FIND);
+        forceY = intent.getIntExtra(EX_Y, 0);
+        if (intent.getBooleanExtra(EX_RANDOM, false) && restorePath == null && intent.getStringExtra(EX_PATH) == null) {
+            // ערך היום: ערך אקראי מהספר (העמוד הקודם נשאר בכרטיסיות)
+            try {
+                ZimFile z = Library.open(book);
+                ZimFile.Entry e = z.randomArticle();
+                if (e != null) {
+                    openBook(book, z.fullPathOf(e));
+                    Toast.makeText(this, "ערך היום", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
         openBook(book, restorePath != null ? restorePath : intent.getStringExtra(EX_PATH));
     }
 
@@ -291,7 +307,7 @@ public class ReaderActivity extends Activity {
 
     private void toggleBookmark() {
         if (curPath == null) return;
-        boolean on = Prefs.toggleBookmark(this, bookPath, curPath, pageTitle());
+        boolean on = Prefs.toggleBookmark(this, bookPath, curPath, pageTitle(), web.getScrollY());
         updateBookmarkIcon();
         Toast.makeText(this, on ? "נוספה סימנייה" : "הסימנייה הוסרה", Toast.LENGTH_SHORT).show();
     }
@@ -458,6 +474,7 @@ public class ReaderActivity extends Activity {
     // ---------- כרטיסיות ----------
 
     private int pendingScrollY;
+    private int forceY;                  // מיקום גלילה מסימנייה (גובר על הכרטיסייה)
     private int lastY;                    // מיקום הגלילה האחרון הידוע בעמוד הנוכחי
     private boolean tabSwitching;         // מעבר יזום בין כרטיסיות (לא ליצור כרטיסייה חדשה)
     private boolean tabInitialized;
@@ -1374,7 +1391,8 @@ public class ReaderActivity extends Activity {
             Prefs.addHistory(ReaderActivity.this, bookPath, p, t);
             Prefs.setPosition(ReaderActivity.this, bookPath, p);
             updateBookmarkIcon();
-            final int restoreY = pendingScrollY;
+            final int restoreY = forceY > 0 ? forceY : pendingScrollY;
+            forceY = 0;
             pendingScrollY = 0;
             tabSwitching = false;
             lastY = restoreY;
