@@ -102,6 +102,13 @@ public class ReaderActivity extends Activity {
                 onWebScroll(y, oldY);
             }
         });
+        web.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, android.view.MotionEvent e) {
+                if (autoScrolling && e.getAction() == android.view.MotionEvent.ACTION_DOWN) stopAutoScroll();
+                return false;
+            }
+        });
         web.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
             public boolean onLongClick(View v) {
@@ -580,9 +587,24 @@ public class ReaderActivity extends Activity {
             Prefs.Item t = tabs.get(i);
             labels.add((i == 0 ? "● " : (i + 1) + ". ") + t.title.replace('_', ' ') + "  ·  " + Library.nameOf(t.book));
         }
+        List<String[]> rows = new ArrayList<String[]>();
+        for (String l : labels) rows.add(new String[]{l});
+        final AlertDialog[] holder = new AlertDialog[1];
+        RowAdapter adapter = new RowAdapter(this, rows, new RowAdapter.Deleter() {
+            @Override
+            public boolean canDelete(int position) {
+                return position > 0 && n > 1;
+            }
+
+            @Override
+            public void delete(int position) {
+                if (holder[0] != null) holder[0].dismiss();
+                closeTab(position - 1);
+            }
+        });
         AlertDialog dlg = new AlertDialog.Builder(this)
-                .setTitle("כרטיסיות (" + n + "/10) · לחיצה ארוכה: סגירה")
-                .setItems(labels.toArray(new String[0]), new DialogInterface.OnClickListener() {
+                .setTitle("כרטיסיות (" + n + "/10)")
+                .setAdapter(adapter, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int which) {
                         if (which == 0) openSearch();
@@ -590,11 +612,13 @@ public class ReaderActivity extends Activity {
                     }
                 })
                 .create();
+        holder[0] = dlg;
         dlg.show();
         dlg.getListView().setOnItemLongClickListener(new android.widget.AdapterView.OnItemLongClickListener() {
             @Override
             public boolean onItemLongClick(android.widget.AdapterView<?> p, View v, int pos, long id) {
                 if (pos == 0 || n <= 1) return true;
+                holder[0].dismiss();
                 closeTab(pos - 1);
                 return true;
             }
@@ -711,6 +735,7 @@ public class ReaderActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+        stopAutoScroll();
         pollHandler.removeCallbacks(scrollPoller);
         // שומר את מיקום הגלילה של הכרטיסייה הנוכחית
         withScrollY(new ValueCallback<Integer>() {
@@ -719,6 +744,116 @@ public class ReaderActivity extends Activity {
                 syncCurrentTab(y);
             }
         });
+    }
+
+    // ---------- ערך אקראי ----------
+
+    /** ערך אקראי: בספר הפתוח, או מכל הספרים (בהסתברות יחסית לגודל הספר). */
+    private void randomArticle(final boolean anyBook) {
+        final List<Library.Book> books = Library.list();
+        final String current = bookPath;
+        Toast.makeText(this, "מחפש ערך אקראי…", Toast.LENGTH_SHORT).show();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String book = current;
+                String path = null;
+                try {
+                    if (anyBook && !books.isEmpty()) {
+                        long total = 0;
+                        for (Library.Book b : books) total += Math.max(1, b.size);
+                        long r = (long) (Math.random() * total);
+                        for (Library.Book b : books) {
+                            r -= Math.max(1, b.size);
+                            if (r < 0) {
+                                book = b.path;
+                                break;
+                            }
+                        }
+                    }
+                    ZimFile z = Library.open(book);
+                    ZimFile.Entry e = z.randomArticle();
+                    if (e != null) path = z.fullPathOf(e);
+                } catch (Throwable ignored) {
+                }
+                final String fb = book, fp = path;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (isFinishing()) return;
+                        if (fp == null) {
+                            Toast.makeText(ReaderActivity.this, "לא נמצא ערך", Toast.LENGTH_SHORT).show();
+                        } else if (fb.equals(bookPath)) {
+                            load(fp);
+                        } else {
+                            openBook(fb, fp);
+                        }
+                    }
+                });
+            }
+        }).start();
+    }
+
+    // ---------- גלילה אוטומטית ----------
+
+    private static final int SCROLL_TICK_MS = 30;
+    private boolean autoScrolling;
+    private float scrollRemainder;
+    private int stuckTicks;
+    private final android.os.Handler scrollHandler = new android.os.Handler();
+    private final Runnable scrollTick = new Runnable() {
+        @Override
+        public void run() {
+            if (!autoScrolling) return;
+            float d = getResources().getDisplayMetrics().density;
+            scrollRemainder += Prefs.SCROLL_DP_PER_SEC[Prefs.autoScroll(ReaderActivity.this) - 1] * d
+                    * SCROLL_TICK_MS / 1000f;
+            int px = (int) scrollRemainder;
+            if (px > 0) {
+                scrollRemainder -= px;
+                int before = web.getScrollY();
+                web.scrollBy(0, px);
+                stuckTicks = web.getScrollY() == before ? stuckTicks + 1 : 0;
+                if (stuckTicks > 15) {            // הגענו לסוף הדף
+                    stopAutoScroll();
+                    return;
+                }
+            }
+            scrollHandler.postDelayed(this, SCROLL_TICK_MS);
+        }
+    };
+
+    private void toggleAutoScroll() {
+        if (autoScrolling) stopAutoScroll();
+        else startAutoScroll();
+    }
+
+    private void startAutoScroll() {
+        autoScrolling = true;
+        scrollRemainder = 0;
+        stuckTicks = 0;
+        web.setKeepScreenOn(true);
+        showScrollSpeed("גלילה אוטומטית");
+        scrollHandler.removeCallbacks(scrollTick);
+        scrollHandler.postDelayed(scrollTick, SCROLL_TICK_MS);
+    }
+
+    private void stopAutoScroll() {
+        if (!autoScrolling) return;
+        autoScrolling = false;
+        scrollHandler.removeCallbacks(scrollTick);
+        web.setKeepScreenOn(false);
+        Toast.makeText(this, "הגלילה האוטומטית נעצרה", Toast.LENGTH_SHORT).show();
+    }
+
+    private void changeScrollSpeed(int delta) {
+        Prefs.setAutoScroll(this, Prefs.autoScroll(this) + delta);
+        showScrollSpeed("מהירות");
+    }
+
+    private void showScrollSpeed(String prefix) {
+        Toast.makeText(this, prefix + ": " + Prefs.autoScroll(this) + "/" + Prefs.SCROLL_DP_PER_SEC.length,
+                Toast.LENGTH_SHORT).show();
     }
 
     // ---------- תפריט ----------
@@ -732,6 +867,9 @@ public class ReaderActivity extends Activity {
         items.add("רשימת סימניות");
         items.add("היסטוריה");
         items.add("הגדרות");
+        items.add("ערך אקראי בספר הנוכחי");
+        items.add("ערך אקראי מכל הספרים");
+        items.add(autoScrolling ? "עצור גלילה אוטומטית" : "גלילה אוטומטית");
         if (keys) items.add("עזרה: מקשים");
         new AlertDialog.Builder(this)
                 .setItems(items.toArray(new String[0]), new DialogInterface.OnClickListener() {
@@ -744,6 +882,9 @@ public class ReaderActivity extends Activity {
                             case 3: openList(Prefs.BOOKMARKS); break;
                             case 4: openList(Prefs.HISTORY); break;
                             case 5: startActivity(new Intent(ReaderActivity.this, SettingsActivity.class)); break;
+                            case 6: randomArticle(false); break;
+                            case 7: randomArticle(true); break;
+                            case 8: toggleAutoScroll(); break;
                             default: Keys.showHelp(ReaderActivity.this);
                         }
                     }
@@ -822,6 +963,16 @@ public class ReaderActivity extends Activity {
         }
         if (a == Keys.BACK) {
             if (down) onBackPressed();
+            return true;
+        }
+        if (a == Keys.AUTOSCROLL) {
+            if (down && ev.getRepeatCount() == 0) toggleAutoScroll();
+            return true;
+        }
+        if (autoScrolling && down) {
+            // בזמן גלילה אוטומטית: ▼ מהר יותר, ▲ לאט יותר, כל מקש אחר עוצר
+            if (a == Keys.DOWN || a == Keys.UP) changeScrollSpeed(a == Keys.DOWN ? 1 : -1);
+            else stopAutoScroll();
             return true;
         }
         if (a == Keys.SEARCH || a == Keys.LIBRARY || a == Keys.HOME || a == Keys.LINKS || a == Keys.TOC) {
@@ -916,6 +1067,10 @@ public class ReaderActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (autoScrolling) {
+            stopAutoScroll();
+            return;
+        }
         if (web.canGoBack()) web.goBack();
         else super.onBackPressed();
     }
@@ -1029,6 +1184,7 @@ public class ReaderActivity extends Activity {
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
             String p = pathFromUrl(url);
             if (p != null) {
+                if (!p.equals(curPath)) stopAutoScroll();
                 curPath = p;
                 onNavigate(p);
             }

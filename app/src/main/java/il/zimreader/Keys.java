@@ -11,7 +11,8 @@ public final class Keys {
     private Keys() {}
 
     public static final int NONE = 0, UP = 1, DOWN = 2, PREV_LINK = 3, NEXT_LINK = 4, OK = 5, MENU = 6,
-            BACK = 7, HOME = 8, SEARCH = 9, LIBRARY = 10, LINKS = 11, TOC = 12, PAGE_UP = 13, PAGE_DOWN = 14;
+            BACK = 7, HOME = 8, SEARCH = 9, LIBRARY = 10, LINKS = 11, TOC = 12, PAGE_UP = 13, PAGE_DOWN = 14,
+            AUTOSCROLL = 15;
 
     public static int map(KeyEvent e) {
         switch (e.getKeyCode()) {
@@ -49,8 +50,8 @@ public final class Keys {
             case 6: return NEXT_LINK;
             case 7: return TOC;
             case 8: return PAGE_DOWN;
-            case 9:
-            case 0: return LIBRARY;
+            case 9: return LIBRARY;
+            case 0: return AUTOSCROLL;
             default:
                 break;
         }
@@ -76,6 +77,7 @@ public final class Keys {
             case TOC: return "כותרות בדף";
             case PAGE_UP: return "עמוד למעלה";
             case PAGE_DOWN: return "עמוד למטה";
+            case AUTOSCROLL: return "גלילה אוטומטית";
             default: return "לא מוגדר";
         }
     }
@@ -100,7 +102,8 @@ public final class Keys {
                         + "1: דף ראשי\n"
                         + "3: רשימת קישורים בדף (לחיצה ארוכה על קישור: פתיחה בכרטיסייה חדשה)\n"
                         + "7: כותרות בדף\n"
-                        + "9 או 0: החלפת ספר / חזרה לספרייה\n"
+                        + "9: החלפת ספר / חזרה לספרייה\n"
+                        + "0: גלילה אוטומטית (בזמן הגלילה: ▼ מהר יותר, ▲ לאט יותר, כל מקש אחר עוצר)\n"
                         + "* : חיפוש\n"
                         + "# או MENU או מקש רך שמאלי: תפריט\n"
                         + "חזרה או מקש רך ימני או C: אחורה / יציאה\n\n"

@@ -19,6 +19,6 @@
     <string name="no_results">אין תוצאות</string>
     <string name="open_failed">פתיחת הקובץ נכשלה</string>
     <string name="hint_library">▲▼ בחירה · אישור פתיחה · MENU / # תפריט</string>
-    <string name="hint_reader">▲▼ גלילה · ◀▶ קישור · אישור פתיחה · # תפריט · 9 ספרים</string>
+    <string name="hint_reader">▲▼ גלילה · ◀▶ קישור · אישור פתיחה · # תפריט · 9 ספרים · 0 גלילה</string>
     <string name="hint_list">▲▼ בחירה · אישור פתיחה · MENU / # מחיקה</string>
 </resources>

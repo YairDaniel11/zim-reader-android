@@ -99,6 +99,50 @@ public final class Prefs {
         sp(c).edit().putInt("keyHints", v).apply();
     }
 
+    /** מהירות הגלילה האוטומטית: 1..10 (ראו SCROLL_DP_PER_SEC). */
+    public static final int[] SCROLL_DP_PER_SEC = {8, 15, 25, 40, 60, 90, 130, 180, 250, 350};
+
+    public static int autoScroll(Context c) {
+        return Math.max(1, Math.min(SCROLL_DP_PER_SEC.length, sp(c).getInt("autoScroll", 4)));
+    }
+
+    public static void setAutoScroll(Context c, int v) {
+        sp(c).edit().putInt("autoScroll", Math.max(1, Math.min(SCROLL_DP_PER_SEC.length, v))).apply();
+    }
+
+    // ---------- חיפושים אחרונים ----------
+
+    private static final int SEARCHES_MAX = 10;
+
+    public static synchronized List<String> searches(Context c) {
+        List<String> out = new ArrayList<String>();
+        try {
+            JSONArray a = new JSONArray(sp(c).getString("searches", "[]"));
+            for (int i = 0; i < a.length(); i++) out.add(a.getString(i));
+        } catch (Exception ignored) {
+        }
+        return out;
+    }
+
+    private static void saveSearches(Context c, List<String> l) {
+        sp(c).edit().putString("searches", new JSONArray(l).toString()).apply();
+    }
+
+    public static synchronized void addSearch(Context c, String q) {
+        q = q == null ? "" : q.trim();
+        if (q.length() == 0) return;
+        List<String> l = searches(c);
+        l.remove(q);
+        l.add(0, q);
+        while (l.size() > SEARCHES_MAX) l.remove(l.size() - 1);
+        saveSearches(c, l);
+    }
+
+    public static synchronized void removeSearch(Context c, String q) {
+        List<String> l = searches(c);
+        if (l.remove(q)) saveSearches(c, l);
+    }
+
     public static void setForceLegacyCss(Context c, boolean v) {
         sp(c).edit().putBoolean("legacyCss", v).apply();
     }

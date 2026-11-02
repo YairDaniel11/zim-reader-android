@@ -100,6 +100,22 @@ public class SettingsActivity extends Activity {
             }
         });
 
+        add(rows, "מהירות גלילה אוטומטית", Prefs.autoScroll(this) + " מתוך " + Prefs.SCROLL_DP_PER_SEC.length
+                + " · מפעילים בתפריט, או במקש 0", new Runnable() {
+            public void run() {
+                String[] names = new String[Prefs.SCROLL_DP_PER_SEC.length];
+                for (int i = 0; i < names.length; i++) {
+                    names[i] = (i + 1) + (i == 0 ? " (איטי מאוד)" : i == names.length - 1 ? " (מהיר מאוד)" : "");
+                }
+                choose("מהירות גלילה אוטומטית", names, Prefs.autoScroll(SettingsActivity.this) - 1, new Pick() {
+                    public void on(int w) {
+                        Prefs.setAutoScroll(SettingsActivity.this, w + 1);
+                        render();
+                    }
+                });
+            }
+        });
+
         add(rows, "הסתר סרגלים בגלילה למטה",
                 onOff(Prefs.hideBars(this)) + " · הסרגלים חוזרים בגלילה למעלה", new Runnable() {
             public void run() {

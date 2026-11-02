@@ -405,6 +405,19 @@ public final class ZimFile implements Closeable {
         }
     }
 
+    /** מאמר HTML אקראי (מפנה מתורגם ליעד); null אם לא נמצא אחרי כמה ניסיונות. */
+    public Entry randomArticle() throws IOException {
+        int start = lowerBound(contentNs, new byte[0]);
+        int end = lowerBound((char) (contentNs + 1), new byte[0]);
+        if (end <= start) return null;
+        java.util.Random rnd = new java.util.Random();
+        for (int tries = 0; tries < 60; tries++) {
+            Entry t = resolve(entryAt(start + rnd.nextInt(end - start)));
+            if (t != null && t.mime != null && t.mime.startsWith("text/html")) return t;
+        }
+        return null;
+    }
+
     private List<Entry> suggestExact(String p, int max) throws IOException {
         List<Entry> out = new ArrayList<Entry>();
         if (p.length() == 0) return out;
