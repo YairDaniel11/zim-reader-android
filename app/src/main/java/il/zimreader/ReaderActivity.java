@@ -98,6 +98,7 @@ public class ReaderActivity extends Activity {
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
+        if (Build.VERSION.SDK_INT < 19) web.addJavascriptInterface(new LegacyBridge(), "zrBridge");
         s.setAllowFileAccess(false);
         s.setSupportZoom(true);
         s.setBuiltInZoomControls(true);
@@ -296,6 +297,7 @@ public class ReaderActivity extends Activity {
             zim = Library.open(book);     // אם הספר נסגר בינתיים - נפתח מחדש
             Library.pin(book);
             Prefs.setLastBook(this, book);
+            showBookIcon(book);
             if (path == null) path = Prefs.position(this, book);
             if (path == null || zim.findByFullPath(path) == null) {
                 ZimFile.Entry m = zim.mainEntry();
@@ -307,6 +309,34 @@ public class ReaderActivity extends Activity {
             Toast.makeText(this, getString(R.string.open_failed) + ": " + e.getClass().getSimpleName(),
                     Toast.LENGTH_LONG).show();
             if (zim == null) finish();
+        }
+    }
+
+    /** מציג את אייקון הספר בסרגל העליון (אם יש בקובץ). */
+    private void showBookIcon(String book) {
+        android.widget.ImageView iv = (android.widget.ImageView) findViewById(R.id.bookIcon);
+        android.graphics.Bitmap bm = null;
+        if (Library.iconFile(book) == null) {
+            try {
+                byte[] b = zim.metadataBytes("Illustration_48x48@1");
+                if (b != null && b.length > 0) {
+                    java.io.File dir = new java.io.File(getCacheDir(), "icons");
+                    dir.mkdirs();
+                    java.io.FileOutputStream o = new java.io.FileOutputStream(
+                            new java.io.File(dir, Integer.toHexString(book.hashCode()) + ".png"));
+                    o.write(b);
+                    o.close();
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        java.io.File f = Library.iconFile(book);
+        if (f != null) bm = android.graphics.BitmapFactory.decodeFile(f.getAbsolutePath());
+        if (bm != null) {
+            iv.setImageBitmap(bm);
+            iv.setVisibility(View.VISIBLE);
+        } else {
+            iv.setVisibility(View.GONE);
         }
     }
 
@@ -429,23 +459,20 @@ public class ReaderActivity extends Activity {
         final List<String> urls = new ArrayList<String>(found.keySet());
         String[] labels = found.values().toArray(new String[0]);
         final String[] names = labels;
-        AlertDialog dlg = new AlertDialog.Builder(this)
-                .setTitle("קישורים (" + labels.length + ")")
-                .setItems(labels, new DialogInterface.OnClickListener() {
+        BottomSheet.show(this, "קישורים (" + labels.length + ")", labels,
+                new android.widget.AdapterView.OnItemClickListener() {
                     @Override
-                    public void onClick(DialogInterface d, int which) {
+                    public void onItemClick(android.widget.AdapterView<?> p, View v, int which, long id) {
                         web.loadUrl(urls.get(which));
                     }
-                })
-                .create();
-        dlg.show();
-        dlg.getListView().setOnItemLongClickListener(new android.widget.AdapterView.OnItemLongClickListener() {
-            @Override
-            public boolean onItemLongClick(android.widget.AdapterView<?> p, View v, int pos, long id) {
-                openInBackgroundTab(urls.get(pos), names[pos]);
-                return true;
-            }
-        });
+                },
+                new android.widget.AdapterView.OnItemLongClickListener() {
+                    @Override
+                    public boolean onItemLongClick(android.widget.AdapterView<?> p, View v, int pos, long id) {
+                        openInBackgroundTab(urls.get(pos), names[pos]);
+                        return true;
+                    }
+                });
     }
 
     private static String jsString(String x) {
@@ -764,6 +791,7 @@ public class ReaderActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        ThemeUtil.applyKeepScreen(this);
         if (ThemeUtil.isDark(this) != appliedDark) {
             recreate();
             return;
@@ -1000,7 +1028,14 @@ public class ReaderActivity extends Activity {
         int flags = View.SYSTEM_UI_FLAG_VISIBLE;
         if (Prefs.fullscreen(this)) {
             flags = View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
+                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
+        }
+        // מסך עם חריץ (notch): בלי זה נשאר פס ריק במקום שורת המערכת שהוסתרה
+        if (Build.VERSION.SDK_INT >= 28) {
+            android.view.WindowManager.LayoutParams wp = getWindow().getAttributes();
+            wp.layoutInDisplayCutoutMode = Prefs.fullscreen(this) ? 1 : 0;   // 1 = SHORT_EDGES, 0 = DEFAULT
+            getWindow().setAttributes(wp);
         }
         getWindow().getDecorView().setSystemUiVisibility(flags);
     }
@@ -1331,8 +1366,48 @@ public class ReaderActivity extends Activity {
     }
 
     private void js(String code, ValueCallback<String> cb) {
+        if (Build.VERSION.SDK_INT < 19) {      // אנדרואיד 4.1-4.3: אין evaluateJavascript
+            legacyJs(code, cb);
+            return;
+        }
         try {
             web.evaluateJavascript(code, cb);
+        } catch (Throwable t) {
+            if (cb != null) cb.onReceiveValue(null);
+        }
+    }
+
+    // ---------- JavaScript באנדרואיד 4.1-4.3 (בלי evaluateJavascript) ----------
+
+    private final Map<Integer, ValueCallback<String>> legacyCallbacks = new HashMap<Integer, ValueCallback<String>>();
+    private int legacySeq;
+
+    /** גשר שמחזיר את תוצאת ה-JavaScript (כ-JSON, כמו evaluateJavascript) ל-callback בשרשור הראשי. */
+    private final class LegacyBridge {
+        @android.webkit.JavascriptInterface
+        public void r(final int id, final String value) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    ValueCallback<String> cb = legacyCallbacks.remove(id);
+                    if (cb != null) cb.onReceiveValue(value);
+                }
+            });
+        }
+    }
+
+    private void legacyJs(String code, ValueCallback<String> cb) {
+        try {
+            String url;
+            if (cb == null) {
+                url = code + ";void 0;";
+            } else {
+                int id = ++legacySeq;
+                legacyCallbacks.put(id, cb);
+                url = "try{var v=(" + code + ");zrBridge.r(" + id + ",v===undefined?'null':JSON.stringify(v))}catch(e){zrBridge.r(" + id
+                        + ",'null')};void 0;";
+            }
+            web.loadUrl("javascript:" + Uri.encode(url));
         } catch (Throwable t) {
             if (cb != null) cb.onReceiveValue(null);
         }

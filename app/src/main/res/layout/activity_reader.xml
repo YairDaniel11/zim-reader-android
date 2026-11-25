@@ -87,6 +87,16 @@
         android:paddingLeft="8dp"
         android:paddingRight="8dp">
 
+        <ImageView
+            android:id="@+id/bookIcon"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginLeft="4dp"
+            android:layout_marginRight="8dp"
+            android:contentDescription="@null"
+            android:scaleType="fitCenter"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/title"
             android:layout_width="0dp"

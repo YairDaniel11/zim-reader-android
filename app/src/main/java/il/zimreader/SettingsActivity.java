@@ -48,6 +48,12 @@ public class SettingsActivity extends Activity {
         render();
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        ThemeUtil.applyKeepScreen(this);
+    }
+
     private void add(List<String[]> rows, String title, String sub, Runnable action) {
         rows.add(new String[]{title, sub});
         actions.add(action);
@@ -143,6 +149,15 @@ public class SettingsActivity extends Activity {
         add(rows, "מסך מלא", onOff(Prefs.fullscreen(this)) + " · מסתיר גם את שורת המערכת", new Runnable() {
             public void run() {
                 Prefs.setFullscreen(SettingsActivity.this, !Prefs.fullscreen(SettingsActivity.this));
+                render();
+            }
+        });
+
+        add(rows, "מניעת כיבוי המסך",
+                onOff(Prefs.keepScreenOn(this)) + " · המסך לא יכבה בזמן השימוש באפליקציה", new Runnable() {
+            public void run() {
+                Prefs.setKeepScreenOn(SettingsActivity.this, !Prefs.keepScreenOn(SettingsActivity.this));
+                ThemeUtil.applyKeepScreen(SettingsActivity.this);
                 render();
             }
         });

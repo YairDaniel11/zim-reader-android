@@ -6,8 +6,8 @@ android {
 
     defaultConfig {
         applicationId "il.zimreader"
-        // minSdk קבוע (אנדרואיד 4.4), targetSdk עדכני
-        minSdk 19
+        // minSdk קבוע (אנדרואיד 4.1), targetSdk עדכני
+        minSdk 16
         targetSdk 34
         versionCode 1
         versionName "1.0"

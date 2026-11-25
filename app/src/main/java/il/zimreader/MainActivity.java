@@ -24,6 +24,8 @@ public class MainActivity extends Activity {
     private boolean appliedDark;
     private boolean scanning;
     private List<Library.Book> shown = new ArrayList<Library.Book>();
+    /** כרטיסיית "המשך לקרוא" (העמוד האחרון), או null. אם קיימת היא השורה הראשונה ברשימה. */
+    private Prefs.Item cont;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,6 +52,15 @@ public class MainActivity extends Activity {
         list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> p, View v, int pos, long id) {
+                if (cont != null) {
+                    if (pos == 0) {
+                        startActivity(new Intent(MainActivity.this, ReaderActivity.class)
+                                .putExtra(ReaderActivity.EX_BOOK, cont.book)
+                                .putExtra(ReaderActivity.EX_PATH, cont.path));
+                        return;
+                    }
+                    pos--;
+                }
                 if (pos < shown.size()) {
                     startActivity(new Intent(MainActivity.this, ReaderActivity.class)
                             .putExtra(ReaderActivity.EX_BOOK, shown.get(pos).path));
@@ -142,6 +153,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        ThemeUtil.applyKeepScreen(this);
         if (ThemeUtil.isDark(this) != appliedDark) {
             recreate();
             return;
@@ -201,16 +213,30 @@ public class MainActivity extends Activity {
         header.setText(shown.isEmpty() ? getString(R.string.library)
                 : getString(R.string.library) + " (" + shown.size() + ")");
         List<String[]> rows = new ArrayList<String[]>();
+        cont = null;
+        List<Prefs.Item> tabs = Prefs.tabs(this);
+        if (!tabs.isEmpty() && tabs.get(0).book != null && tabs.get(0).path != null) {
+            Prefs.Item t = tabs.get(0);
+            if (!t.book.startsWith("/") || new java.io.File(t.book).exists()) cont = t;
+        }
+        int off = cont != null ? 1 : 0;
+        String[] icons = new String[shown.size() + off];
+        if (cont != null) {
+            String pg = cont.title == null ? "" : cont.title.replace('_', ' ');
+            rows.add(new String[]{"המשך לקרוא", pg + "  ·  " + Library.nameOf(cont.book)});
+            icons[0] = cont.book;
+        }
         int selected = 0;
         String last = Prefs.lastBook(this);
         for (int i = 0; i < shown.size(); i++) {
             Library.Book b = shown.get(i);
-            if (b.path.equals(last)) selected = i;
+            icons[i + off] = b.path;
+            if (b.path.equals(last)) selected = i + off;
             String file = b.path.substring(b.path.lastIndexOf('/') + 1);
             rows.add(new String[]{b.name,
                     String.format(Locale.US, "%.1f MB  ·  %s", b.size / 1048576.0, file)});
         }
-        list.setAdapter(new RowAdapter(this, rows));
+        list.setAdapter(new RowAdapter(this, rows).withIcons(icons));
         if (rows.isEmpty()) {
             empty.setText(R.string.no_books);
             empty.setVisibility(View.VISIBLE);

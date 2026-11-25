@@ -8,6 +8,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
 
@@ -26,6 +27,15 @@ public class RowAdapter extends ArrayAdapter<String[]> {
     }
 
     private final Deleter deleter;
+    private String[] iconPaths;
+    private final java.util.Map<String, android.graphics.Bitmap> iconCache =
+            new java.util.HashMap<String, android.graphics.Bitmap>();
+
+    /** נתיבי ספרים לפי מיקום השורה (null בשורה בלי אייקון): מציג את אייקון הספר בצד השורה. */
+    public RowAdapter withIcons(String[] bookPaths) {
+        iconPaths = bookPaths;
+        return this;
+    }
 
     public RowAdapter(Context c, List<String[]> rows) {
         this(c, rows, null);
@@ -48,6 +58,24 @@ public class RowAdapter extends ArrayAdapter<String[]> {
             sub.setVisibility(View.VISIBLE);
         } else {
             sub.setVisibility(View.GONE);
+        }
+        ImageView icon = (ImageView) v.findViewById(R.id.rowIcon);
+        android.graphics.Bitmap bm = null;
+        String bp = iconPaths != null && position < iconPaths.length ? iconPaths[position] : null;
+        if (bp != null) {
+            if (iconCache.containsKey(bp)) {
+                bm = iconCache.get(bp);
+            } else {
+                java.io.File f = Library.iconFile(bp);
+                if (f != null) bm = android.graphics.BitmapFactory.decodeFile(f.getAbsolutePath());
+                iconCache.put(bp, bm);
+            }
+        }
+        if (bm != null) {
+            icon.setImageBitmap(bm);
+            icon.setVisibility(View.VISIBLE);
+        } else {
+            icon.setVisibility(View.GONE);
         }
         v.findViewById(R.id.rowDelete).setVisibility(
                 deleter != null && deleter.canDelete(position) ? View.VISIBLE : View.GONE);

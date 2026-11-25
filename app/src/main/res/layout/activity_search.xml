@@ -24,7 +24,7 @@
             android:hint="@string/search_hint"
             android:imeOptions="actionSearch"
             android:inputType="text"
-            android:nextFocusDown="@+id/chkContent"
+            android:nextFocusDown="@+id/list"
             android:nextFocusUp="@id/query"
             android:singleLine="true"
             android:textColor="#FFFFFFFF"
@@ -38,16 +38,6 @@
             android:src="@drawable/ic_more"
             android:visibility="gone" />
     </LinearLayout>
-
-    <CheckBox
-        android:id="@+id/chkContent"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:minHeight="48dp"
-        android:nextFocusDown="@+id/list"
-        android:nextFocusUp="@id/query"
-        android:text="@string/search_in_content"
-        android:textColor="?attr/zrText" />
 
     <TextView
         android:id="@+id/status"
@@ -67,5 +57,5 @@
         android:dividerHeight="1dp"
         android:drawSelectorOnTop="true"
         android:listSelector="@drawable/list_selector"
-        android:nextFocusUp="@id/chkContent" />
+        android:nextFocusUp="@id/query" />
 </LinearLayout>

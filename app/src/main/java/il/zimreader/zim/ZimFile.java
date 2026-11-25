@@ -257,6 +257,16 @@ public final class ZimFile implements Closeable {
         return resolve(e);
     }
 
+    /** ערך מטא-דאטה כבתים (למשל אייקון PNG), או null. */
+    public byte[] metadataBytes(String key) {
+        try {
+            Entry e = resolve(find('M', key));
+            return e == null ? null : content(e);
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
     public String metadata(String key) {
         try {
             Entry e = find('M', key);

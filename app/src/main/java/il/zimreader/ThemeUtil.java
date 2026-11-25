@@ -26,9 +26,21 @@ public final class ThemeUtil {
         Prefs.setTheme(c, isDark(c) ? 1 : 2);
     }
 
-    /** כל הממשק מימין לשמאל, גם כשהמכשיר מוגדר לשפה אחרת. API 17+ ולכן בטוח מ-minSdk 19. */
+    /** כל הממשק מימין לשמאל, גם כשהמכשיר מוגדר לשפה אחרת (API 17+). */
     public static void forceRtl(Activity a) {
-        a.getWindow().getDecorView().setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        // לפני API 17 אין כיוון פריסה: הממשק נשאר משמאל לימין (הטקסט העברי עצמו עדיין מימין לשמאל)
+        if (android.os.Build.VERSION.SDK_INT >= 17) {
+            a.getWindow().getDecorView().setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        }
+    }
+
+    /** מניעת כיבוי המסך לפי ההגדרה. */
+    public static void applyKeepScreen(Activity a) {
+        if (Prefs.keepScreenOn(a)) {
+            a.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        } else {
+            a.getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
     }
 
     /** שורת הרמזים שבתחתית המסך: מוצגת רק במכשיר עם מקשים (או לפי ההגדרה). */

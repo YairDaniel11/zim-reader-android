@@ -86,6 +86,7 @@ public class ListScreenActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        ThemeUtil.applyKeepScreen(this);
         ThemeUtil.applyHintBar(this);
         render();
     }

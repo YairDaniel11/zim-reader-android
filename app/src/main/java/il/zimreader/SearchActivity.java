@@ -10,8 +10,6 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.widget.AdapterView;
-import android.widget.CheckBox;
-import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
@@ -34,7 +32,7 @@ public class SearchActivity extends Activity {
     private EditText query;
     private ListView list;
     private TextView status;
-    private CheckBox chkContent;
+    private boolean contentMode;       // חיפוש בתוכן (מתוך תפריט האפשרויות)
     private boolean allBooks;       // חיפוש בכל הספרים (מתוך תפריט האפשרויות)
     private final Handler handler = new Handler();
     private int seq;
@@ -64,7 +62,6 @@ public class SearchActivity extends Activity {
         query = (EditText) findViewById(R.id.query);
         list = (ListView) findViewById(R.id.list);
         status = (TextView) findViewById(R.id.status);
-        chkContent = (CheckBox) findViewById(R.id.chkContent);
         View btnOptions = findViewById(R.id.btnOptions);
         if (!Prefs.showKeyUi(this)) {      // במכשיר מגע אין מקש תפריט: כפתור בסרגל
             btnOptions.setVisibility(View.VISIBLE);
@@ -87,7 +84,7 @@ public class SearchActivity extends Activity {
 
             @Override
             public void afterTextChanged(Editable e) {
-                if (!chkContent.isChecked()) scheduleTitles(e.toString());
+                if (!contentMode) scheduleTitles(e.toString());
                 else if (e.toString().trim().length() == 0) showRecents();
                 else scheduleContent(e.toString());
             }
@@ -111,12 +108,6 @@ public class SearchActivity extends Activity {
                 return false;
             }
         });
-        chkContent.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton b, boolean on) {
-                modeChanged();
-            }
-        });
         RowAdapter.attach(list, new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> p, View v, int pos, long id) {
@@ -129,11 +120,17 @@ public class SearchActivity extends Activity {
         else showRecents();
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        ThemeUtil.applyKeepScreen(this);
+    }
+
     /** מצב החיפוש השתנה (תוכן / כל הספרים): מנקה תוצאות ומתחיל מחדש. */
     private void modeChanged() {
         cancel = true;
         clearResults();
-        if (!chkContent.isChecked()) {
+        if (!contentMode) {
             scheduleTitles(query.getText().toString());
         } else {
             status("הקלד מילים - החיפוש בתוכן מתחיל אוטומטית");
@@ -142,19 +139,23 @@ public class SearchActivity extends Activity {
         }
     }
 
-    /** תפריט האפשרויות (מקש עליון שמאלי / MENU). */
+    /** תפריט האפשרויות (מקש עליון שמאלי / MENU): חיפוש בתוכן, וחיפוש בכל הספרים. */
     private void showOptions() {
-        if (Library.list().size() < 2) {
-            android.widget.Toast.makeText(this, "יש רק ספר אחד", android.widget.Toast.LENGTH_SHORT).show();
-            return;
-        }
+        final boolean multi = Library.list().size() >= 2;
+        String[] items = multi
+                ? new String[]{(contentMode ? "✓ " : "") + getString(R.string.search_in_content),
+                        (allBooks ? "✓ " : "") + "חיפוש בכל הספרים"}
+                : new String[]{(contentMode ? "✓ " : "") + getString(R.string.search_in_content)};
         new android.app.AlertDialog.Builder(this)
-                .setItems(new String[]{(allBooks ? "✓ " : "") + "חיפוש בכל הספרים"},
-                        new android.content.DialogInterface.OnClickListener() {
+                .setItems(items, new android.content.DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(android.content.DialogInterface d, int which) {
-                        allBooks = !allBooks;
-                        query.setHint(allBooks ? "חיפוש בכל הספרים…" : getString(R.string.search_hint));
+                        if (which == 0) {
+                            contentMode = !contentMode;
+                        } else {
+                            allBooks = !allBooks;
+                            query.setHint(allBooks ? "חיפוש בכל הספרים…" : getString(R.string.search_hint));
+                        }
                         modeChanged();
                     }
                 })
@@ -167,8 +168,8 @@ public class SearchActivity extends Activity {
      */
     @Override
     public boolean dispatchKeyEvent(KeyEvent ev) {
-        // חץ למטה מתיבת הסימון עובר לתוצאות (בלי להסתמך על חישוב המיקוד של המערכת, שנתקע במכשירים מסוימים)
-        if (ev.getKeyCode() == KeyEvent.KEYCODE_DPAD_DOWN && getCurrentFocus() == chkContent
+        // חץ למטה משורת החיפוש עובר ישירות לתוצאות (בלי להסתמך על חישוב המיקוד של המערכת)
+        if (ev.getKeyCode() == KeyEvent.KEYCODE_DPAD_DOWN && getCurrentFocus() == query
                 && list.getCount() > 0) {
             if (ev.getAction() == KeyEvent.ACTION_DOWN) {
                 list.requestFocus();
@@ -178,7 +179,7 @@ public class SearchActivity extends Activity {
         }
         if (ev.getKeyCode() == KeyEvent.KEYCODE_DPAD_UP && getCurrentFocus() == list
                 && list.getSelectedItemPosition() <= 0) {
-            if (ev.getAction() == KeyEvent.ACTION_DOWN) chkContent.requestFocus();
+            if (ev.getAction() == KeyEvent.ACTION_DOWN) query.requestFocus();
             return true;
         }
         if (ev.getKeyCode() == KeyEvent.KEYCODE_MENU || ev.getKeyCode() == KeyEvent.KEYCODE_SOFT_LEFT) {
@@ -259,7 +260,7 @@ public class SearchActivity extends Activity {
         String q = recents.get(pos);
         query.setText(q);
         query.setSelection(q.length());
-        if (chkContent.isChecked()) runContentSearch(q);
+        if (contentMode) runContentSearch(q);
     }
 
     /** חיפוש בתוכן אוטומטי: מתחיל כשההקלדה נעצרת לרגע (ומבטל חיפוש קודם שעדיין רץ). */
@@ -270,13 +271,13 @@ public class SearchActivity extends Activity {
         handler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                if (!isFinishing() && chkContent.isChecked()) runContentSearch(q);
+                if (!isFinishing() && contentMode) runContentSearch(q);
             }
         }, 800);
     }
 
     private void submit() {
-        if (chkContent.isChecked()) {
+        if (contentMode) {
             Prefs.addSearch(this, query.getText().toString());
             runContentSearch(query.getText().toString());
         } else if (!titleResults.isEmpty()) {
@@ -314,7 +315,7 @@ public class SearchActivity extends Activity {
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
-                                if (my == seq && !isFinishing() && !chkContent.isChecked()) showTitles(q, r, rb);
+                                if (my == seq && !isFinishing() && !contentMode) showTitles(q, r, rb);
                             }
                         });
                     }

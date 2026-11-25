@@ -72,6 +72,32 @@ public final class Library {
 
     private static Context appCtx;
 
+    /** קובץ האייקון השמור (PNG) של ספר, או null אם אין. */
+    public static File iconFile(String path) {
+        if (appCtx == null || path == null) return null;
+        File f = new File(new File(appCtx.getCacheDir(), "icons"), Integer.toHexString(path.hashCode()) + ".png");
+        return f.length() > 0 ? f : null;
+    }
+
+    private static void saveIcon(String path, ZimFile z) {
+        if (appCtx == null) return;
+        try {
+            byte[] b = z.metadataBytes("Illustration_48x48@1");
+            if (b == null || b.length == 0) b = z.metadataBytes("Illustration_64x64@1");
+            if (b == null || b.length == 0 || b.length > 200000) return;
+            File dir = new File(appCtx.getCacheDir(), "icons");
+            dir.mkdirs();
+            java.io.FileOutputStream o = new java.io.FileOutputStream(
+                    new File(dir, Integer.toHexString(path.hashCode()) + ".png"));
+            try {
+                o.write(b);
+            } finally {
+                o.close();
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
     public static void init(Context c) {
         appCtx = c.getApplicationContext();
     }
@@ -91,6 +117,7 @@ public final class Library {
         });
         String t = z.metadata("Title");
         if (t != null && t.trim().length() > 0) names.put(path, t.trim());
+        if (iconFile(path) == null) saveIcon(path, z);
         return z;
     }
 
@@ -147,6 +174,26 @@ public final class Library {
         File storage = new File("/storage");
         File[] kids = storage.listFiles();
         if (kids != null) Collections.addAll(roots, kids);
+        // באנדרואיד 11+ הרשימה של /storage לא כוללת כרטיס זיכרון חיצוני: משלפים את שורשי הכרטיסים
+        // מהתיקיות הייעודיות של האפליקציה (.../storage/XXXX-XXXX/Android/data/il.zimreader/files)
+        if (appCtx != null && android.os.Build.VERSION.SDK_INT >= 19) {
+            try {
+                File[] dirs = appCtx.getExternalFilesDirs(null);
+                if (dirs != null) {
+                    for (File d : dirs) {
+                        if (d == null) continue;
+                        String p = d.getAbsolutePath();
+                        int i = p.indexOf("/Android/data/");
+                        if (i > 0) roots.add(new File(p.substring(0, i)));
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        // כרטיסים שמוגדרים בשם הנפוץ גם כשאי אפשר לרשום את /storage
+        roots.add(new File("/storage/sdcard1"));
+        roots.add(new File("/storage/extSdCard"));
+        roots.add(new File("/storage/external_SD"));
         roots.add(new File("/mnt"));
         roots.add(new File("/sdcard"));
 
@@ -222,6 +269,7 @@ public final class Library {
         ZimFile z = null;
         try {
             z = SplitSource.isFirstPart(f.getName()) ? ZimFile.openSplit(f) : new ZimFile(f);
+            saveIcon(f.getAbsolutePath(), z);
             String t = z.metadata("Title");
             if (t != null && t.trim().length() > 0) return t.trim();
         } catch (Throwable ignored) {

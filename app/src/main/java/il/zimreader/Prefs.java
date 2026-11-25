@@ -172,6 +172,15 @@ public final class Prefs {
         sp(c).edit().putBoolean("fullscreen", v).apply();
     }
 
+    /** מניעת כיבוי המסך בזמן שימוש באפליקציה (ברירת מחדל: פעיל). */
+    public static boolean keepScreenOn(Context c) {
+        return sp(c).getBoolean("keepScreenOn", true);
+    }
+
+    public static void setKeepScreenOn(Context c, boolean v) {
+        sp(c).edit().putBoolean("keepScreenOn", v).apply();
+    }
+
     /** כפתור כרטיסיות בסרגל העליון (על חשבון המקום של כותרת העמוד). */
     public static boolean tabsButton(Context c) {
         return sp(c).getBoolean("tabsButton", false);
